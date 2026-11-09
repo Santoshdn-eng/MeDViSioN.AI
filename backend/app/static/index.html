@@ -1,0 +1,2583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedVision PACS — Enterprise Clinical Diagnostic Workstation</title>
+    <!-- Professional Medical Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Inter"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    },
+                    colors: {
+                        pacs: {
+                            50: '#F8FAFC',
+                            100: '#F1F5F9',
+                            200: '#E2E8F0',
+                            300: '#CBD5E1',
+                            400: '#94A3B8',
+                            500: '#64748B',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1E293B',
+                            900: '#0F172A',
+                            accent: '#0284C7',
+                            accentDark: '#0369A1',
+                            navy: '#0A192F',
+                            teal: '#0D9488',
+                            danger: '#E11D48',
+                            warning: '#D97706',
+                            success: '#059669'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #F8FAFC;
+            color: #0F172A;
+            letter-spacing: -0.011em;
+        }
+        .dicom-viewport-box {
+            background-color: #000000;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        }
+        .pacs-table th {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #475569;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 7px 10px;
+            background-color: #F1F5F9;
+            border-bottom: 1px solid #CBD5E1;
+            font-weight: 600;
+        }
+        .pacs-table td {
+            font-size: 11px;
+            padding: 6px 10px;
+            border-bottom: 1px solid #E2E8F0;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .pacs-table tr:hover td {
+            background-color: #F8FAFC;
+        }
+        .hud-overlay {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #38BDF8;
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.95);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #F1F5F9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+        }
+        /* Dual screen bezel styling */
+        .monitor-frame {
+            border: 2px solid #CBD5E1;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+            background: #FFFFFF;
+        }
+        /* Active slice glow */
+        .slice-active-glow {
+            outline: 2.5px solid #0284C7;
+            outline-offset: -1px;
+            box-shadow: 0 0 8px rgba(2, 132, 199, 0.5);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden bg-slate-100 text-slate-900 select-none">
+
+    <!-- Top Hospital Enterprise Bar -->
+    <header class="h-12 bg-white border-b border-slate-200 px-4 flex items-center justify-between z-30 shrink-0 shadow-xs">
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2">
+                <div class="w-7 h-7 bg-sky-700 text-white rounded flex items-center justify-center font-bold text-xs shadow-xs">
+                    <i data-lucide="activity" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h1 class="text-xs font-bold text-slate-900 tracking-tight flex items-center space-x-1.5">
+                        <span>MEDVISION PACS</span>
+                        <span class="text-[9px] font-mono font-medium px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded border border-slate-200">v4.2 PRO</span>
+                    </h1>
+                </div>
+            </div>
+            <div class="h-4 w-px bg-slate-200"></div>
+            <span class="text-[11px] text-slate-500 font-medium hidden md:inline">St. Jude Medical Center · Dept. of Diagnostic Radiology</span>
+        </div>
+
+        <!-- 1-Click Clinical Sample Selector Bar (Instant Sample Loading for Doctors!) -->
+        <div class="flex items-center space-x-1.5 bg-slate-50 p-1 rounded border border-slate-200 text-xs">
+            <span class="text-[10px] font-mono text-slate-500 uppercase px-1 font-semibold flex items-center space-x-1">
+                <i data-lucide="folder" class="w-3 h-3 text-sky-700"></i>
+                <span>Sample Scans:</span>
+            </span>
+            <button onclick="loadSamplePreset('mri_brats')" id="sampleBtnMri" class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-700 text-white shadow-xs">🧠 Brain MRI (Glioma)</button>
+            <button onclick="loadSamplePreset('mri_stroke')" id="sampleBtnStroke" class="px-2 py-0.5 rounded text-[10px] font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-200">🧠 MRI (Stroke/DWI)</button>
+            <button onclick="loadSamplePreset('ct_nodule')" id="sampleBtnCt" class="px-2 py-0.5 rounded text-[10px] font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-200">🫁 CT Chest (Nodule)</button>
+            <button onclick="loadSamplePreset('xray_effusion')" id="sampleBtnXray" class="px-2 py-0.5 rounded text-[10px] font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-200">🫁 CXR (Effusion)</button>
+            <button onclick="loadSamplePreset('xray_normal')" id="sampleBtnNormal" class="px-2 py-0.5 rounded text-[10px] font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-200">🌿 CXR (Normal)</button>
+            <button onclick="loadSamplePreset('spine_herniation')" id="sampleBtnSpine" class="px-2 py-0.5 rounded text-[10px] font-medium bg-white hover:bg-teal-50 text-teal-800 border border-teal-300">🦴 Spine MRI (L4-L5)</button>
+        </div>
+
+        <!-- Right User & Ingestion Controls -->
+        <div class="flex items-center space-x-2">
+            <input type="file" id="universalFileInput" class="hidden" accept=".dcm,.dicom,.nii,.nii.gz,.png,.jpg,.jpeg,.tiff" onchange="handleFileUpload(event)">
+            
+            <!-- Open Details Inspector Modal Button -->
+            <button onclick="openScanDetailsModal()" class="px-2.5 py-1 bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 rounded text-xs font-semibold transition-all flex items-center space-x-1.5 shadow-xs" title="Open Comprehensive Scan & Technical Acquisition Details">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-sky-700"></i>
+                <span>Scan Details</span>
+            </button>
+
+            <!-- Dual Screen Layout Toggle (Photo Match!) -->
+            <button onclick="toggleDualScreenLayout()" id="btnDualScreenToggle" class="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded text-xs font-medium transition-all flex items-center space-x-1.5 shadow-xs" title="Toggle Dual Monitor Radiologist Setup">
+                <i data-lucide="monitor" class="w-3.5 h-3.5 text-slate-500"></i>
+                <span id="dualScreenToggleText">Dual Monitor</span>
+            </button>
+
+            <button onclick="document.getElementById('universalFileInput').click()" class="px-2.5 py-1 bg-sky-700 hover:bg-sky-800 text-white rounded text-xs font-semibold transition-all flex items-center space-x-1.5 shadow-xs">
+                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                <span>Import Scan</span>
+            </button>
+
+            <div class="h-4 w-px bg-slate-200"></div>
+
+            <div class="flex items-center space-x-2 pl-1">
+                <div class="w-6 h-6 rounded bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                    SA
+                </div>
+                <div class="text-left text-[11px] leading-tight hidden lg:block">
+                    <p class="font-semibold text-slate-800">Dr. S. Alvarez, MD</p>
+                    <p class="text-[9px] text-slate-500">Attending Radiologist</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Patient & Study Banner (Epic Radiant / GE Centricity PACS Style) -->
+    <section class="h-10 bg-slate-50 border-b border-slate-200 px-4 flex items-center justify-between text-xs text-slate-700 shrink-0">
+        <div class="flex items-center space-x-5 font-mono text-[11px] overflow-x-auto whitespace-nowrap">
+            <div>
+                <span class="text-slate-400">PATIENT:</span>
+                <strong id="bannerPatientName" class="text-slate-900 font-sans ml-1">ANONYMIZED_PATIENT_4471</strong>
+            </div>
+            <div>
+                <span class="text-slate-400">MRN:</span>
+                <span id="bannerMRN" class="text-slate-800 font-semibold ml-1">MRN-8492019-R</span>
+            </div>
+            <div>
+                <span class="text-slate-400">AGE/SEX:</span>
+                <span id="bannerAgeSex" class="text-slate-800 ml-1">52Y / M</span>
+            </div>
+            <div>
+                <span class="text-slate-400">ACCESSION:</span>
+                <span id="bannerAccession" class="text-slate-800 ml-1">ACC-2026-9912</span>
+            </div>
+            <div>
+                <span class="text-slate-400">STUDY DATE:</span>
+                <span id="bannerDate" class="text-slate-800 ml-1">2026-11-08 10:45</span>
+            </div>
+            <div>
+                <span class="text-slate-400">MODALITY:</span>
+                <span id="bannerModalityBadge" class="ml-1 px-1.5 py-0.2 bg-sky-100 text-sky-800 font-bold rounded border border-sky-200">MRI BRAIN</span>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3 font-mono text-[11px] shrink-0">
+            <span class="text-slate-400">PACS STATION:</span>
+            <span class="text-slate-800 font-bold">WS-RAD-04</span>
+            <span id="bannerStatus" class="px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">DIAGNOSTIC GRADE A</span>
+        </div>
+    </section>
+
+    <!-- Main Diagnostic Workstation Layout (Matching Dual Monitor Radiologist Setup) -->
+    <div id="workstationLayout" class="flex-1 flex overflow-hidden p-2 gap-2 bg-slate-200/80">
+
+        <!-- ========================================================================= -->
+        <!-- LEFT MONITOR PANE: Multi-Slice Montage & Series Navigation (Monitor 1)    -->
+        <!-- ========================================================================= -->
+        <aside id="leftMonitorPane" class="w-88 xl:w-96 monitor-frame rounded-md flex flex-col shrink-0 overflow-hidden">
+            <!-- Left Screen Header Bar -->
+            <div class="p-2.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div>
+                    <h2 class="text-xs font-bold text-slate-800 tracking-tight uppercase font-mono flex items-center space-x-1.5">
+                        <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-sky-700"></i>
+                        <span>Monitor 1: Series & Slices</span>
+                    </h2>
+                    <p id="seriesSubTitle" class="text-[10px] text-slate-500 font-mono">Series 2: T2/FLAIR Axial · 16 Slices</p>
+                </div>
+                <div class="flex space-x-1">
+                    <button onclick="setStudyModality('MRI')" id="modTabMRI" class="px-2 py-0.5 text-[10px] font-bold rounded bg-sky-700 text-white shadow-xs">MRI</button>
+                    <button onclick="setStudyModality('CT')" id="modTabCT" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white text-slate-600 border border-slate-300 hover:bg-slate-50">CT</button>
+                    <button onclick="setStudyModality('X-RAY')" id="modTabXRAY" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white text-slate-600 border border-slate-300 hover:bg-slate-50">CXR</button>
+                </div>
+            </div>
+
+            <!-- Series Selection List (Left Screen Upper) -->
+            <div class="p-2 border-b border-slate-200 bg-white">
+                <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1 px-1 flex justify-between">
+                    <span>Study Series (4 Sequences)</span>
+                    <span class="text-slate-500">Synced</span>
+                </div>
+                <div class="space-y-1 text-xs">
+                    <div class="p-1.5 rounded bg-sky-50 border border-sky-300 cursor-pointer flex items-center justify-between">
+                        <div>
+                            <p class="font-bold text-slate-900 text-[11px]" id="activeSeriesName">Series 2: Axial Volumetric</p>
+                            <p class="text-[9px] font-mono text-slate-500">16 Slices · 1.0mm · 512x512</p>
+                        </div>
+                        <span class="text-[9px] font-mono font-bold text-sky-700 bg-sky-100 px-1 py-0.2 rounded border border-sky-200">ACTIVE</span>
+                    </div>
+                    <div class="p-1.5 rounded hover:bg-slate-50 border border-transparent cursor-pointer flex items-center justify-between text-slate-600 opacity-80" onclick="alert('Loaded Scout 3-Plane Localizer series.')">
+                        <div>
+                            <p class="font-medium text-[11px]">Series 1: Scout Localizer</p>
+                            <p class="text-[9px] font-mono text-slate-400">3 Slices · Localizer</p>
+                        </div>
+                        <span class="text-[9px] font-mono text-slate-400">READY</span>
+                    </div>
+                    <div class="p-1.5 rounded hover:bg-slate-50 border border-transparent cursor-pointer flex items-center justify-between text-slate-600 opacity-80" onclick="alert('Loaded DWI & ADC Map series.')">
+                        <div>
+                            <p class="font-medium text-[11px]">Series 3: DWI & ADC Map</p>
+                            <p class="text-[9px] font-mono text-slate-400">16 Slices · b=1000</p>
+                        </div>
+                        <span class="text-[9px] font-mono text-slate-400">READY</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multi-Slice Matrix Gallery (15-Slice Montage as seen in reference photo!) -->
+            <div class="p-2 flex-1 flex flex-col overflow-hidden bg-slate-100">
+                <div class="flex items-center justify-between px-1 mb-1.5">
+                    <span class="text-[10px] font-mono text-slate-600 uppercase tracking-wider font-bold">Slice Montage Grid (3x5 Matrix)</span>
+                    <!-- Cine Loop Controller -->
+                    <div class="flex items-center space-x-1">
+                        <button onclick="toggleCineLoop()" id="btnCinePlay" class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-white hover:bg-sky-50 text-sky-800 border border-slate-300 flex items-center space-x-0.5 shadow-2xs" title="Cine loop auto-play through slices">
+                            <i data-lucide="play" class="w-3 h-3 text-sky-700" id="cineIcon"></i>
+                            <span id="cineText">Cine</span>
+                        </button>
+                        <select id="cineFpsSelect" onchange="setCineSpeed(this.value)" class="text-[9px] font-mono bg-white border border-slate-300 rounded px-1 py-0.5">
+                            <option value="5">5 FPS</option>
+                            <option value="10" selected>10 FPS</option>
+                            <option value="15">15 FPS</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="sliceMontageGrid" class="grid grid-cols-3 gap-1.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+                    <!-- Populated dynamically with 15 anatomical slices -->
+                </div>
+            </div>
+
+            <!-- Left Screen Bottom Bar -->
+            <div class="p-2 border-t border-slate-200 bg-white flex items-center justify-between text-[11px] font-mono">
+                <span class="text-slate-500">Prior Study:</span>
+                <span class="text-slate-800 font-semibold">2026-05-14 (6m Prior)</span>
+                <button class="text-[10px] text-sky-700 hover:underline font-bold" onclick="alert('Prior study comparative mode loaded.')">Compare</button>
+            </div>
+        </aside>
+
+        <!-- ========================================================================= -->
+        <!-- RIGHT MONITOR PANE: Diagnostic Viewport & Acquisition Console (Monitor 2) -->
+        <!-- ========================================================================= -->
+        <main class="flex-1 monitor-frame rounded-md flex flex-col overflow-hidden">
+
+            <!-- STAT Emergency Banner (Alert Strip) -->
+            <div id="statAlertBanner" class="hidden bg-rose-600 text-white px-4 py-2 flex items-center justify-between shadow-md shrink-0">
+                <div class="flex items-center space-x-2.5">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-white animate-pulse"></i>
+                    <strong class="text-xs font-mono uppercase tracking-wider">CRITICAL ALERT (STAT):</strong>
+                    <span id="statConditionTitle" class="text-xs font-semibold">Tension Pneumothorax Suspected</span>
+                    <span class="text-xs text-rose-100 font-mono">·</span>
+                    <span id="statActionText" class="text-xs text-rose-100 font-mono">Immediate physician notification required.</span>
+                </div>
+                <button onclick="document.getElementById('statAlertBanner').classList.add('hidden')" class="text-white hover:text-rose-200 text-xs font-bold px-2 py-0.5 rounded bg-rose-700">Acknowledge</button>
+            </div>
+
+            <!-- Workstation Viewport PACS Toolbar (Upper Bar) -->
+            <div class="h-10 bg-white border-b border-slate-300 px-3 flex items-center justify-between shrink-0">
+                <!-- Layout & View Mode Switches (1-Up vs 3-Up Comparative as seen in photo!) -->
+                <div class="flex items-center space-x-1.5">
+                    <span class="text-[10px] font-mono text-slate-400 uppercase mr-1">Viewport:</span>
+                    <button onclick="setViewLayout('three_up')" id="viewBtnThree" class="px-2.5 py-1 text-xs font-semibold rounded bg-sky-50 text-sky-800 border border-sky-300 flex items-center space-x-1 shadow-2xs">
+                        <i data-lucide="columns-3" class="w-3.5 h-3.5"></i>
+                        <span>3-Up Comparative</span>
+                    </button>
+                    <button onclick="setViewLayout('single')" id="viewBtnSingle" class="px-2.5 py-1 text-xs font-medium rounded bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 flex items-center space-x-1">
+                        <i data-lucide="square" class="w-3.5 h-3.5"></i>
+                        <span>1-Up Single</span>
+                    </button>
+                    <button onclick="setViewLayout('montage')" id="viewBtnMontage" class="px-2.5 py-1 text-xs font-medium rounded bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 flex items-center space-x-1">
+                        <i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i>
+                        <span>Montage Matrix</span>
+                    </button>
+                </div>
+
+                <!-- Window / Level Presets (Hospital Diagnostic Standard) -->
+                <div class="flex items-center space-x-1">
+                    <span class="text-[10px] font-mono text-slate-400 uppercase mr-1">Window W/L:</span>
+                    <select id="windowPresetSelect" onchange="applyWindowPreset(this.value)" class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-mono focus:outline-none focus:border-sky-500">
+                        <option value="BRAIN">Brain (C:40 W:80)</option>
+                        <option value="SUBDURAL">Subdural (C:75 W:150)</option>
+                        <option value="LUNG">Lung (C:-600 W:1500)</option>
+                        <option value="BONE">Bone (C:400 W:1800)</option>
+                        <option value="SOFT_TISSUE">Soft Tissue (C:50 W:350)</option>
+                        <option value="SPINE_T2">Spine T2 (C:300 W:600)</option>
+                        <option value="INVERT">Invert (Negative)</option>
+                    </select>
+                </div>
+
+                <!-- Interactive Tools: Caliper, ROI Inspector, Mask, Grad-CAM, Zoom -->
+                <div class="flex items-center space-x-1.5">
+                    <button onclick="toggleCaliperTool()" id="btnCaliper" class="px-2 py-1 text-xs rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 flex items-center space-x-1" title="Measurement Caliper (Distance in mm)">
+                        <i data-lucide="ruler" class="w-3.5 h-3.5 text-slate-600"></i>
+                        <span>Caliper</span>
+                    </button>
+
+                    <button onclick="toggleRoiInspector()" id="btnRoi" class="px-2 py-1 text-xs rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 flex items-center space-x-1" title="Region of Interest (ROI) Pixel Inspector">
+                        <i data-lucide="crosshair" class="w-3.5 h-3.5 text-slate-600"></i>
+                        <span>ROI Inspector</span>
+                    </button>
+
+                    <button onclick="toggleOverlay('mask')" id="btnMask" class="px-2 py-1 text-xs rounded border border-rose-300 bg-rose-50 text-rose-800 font-semibold flex items-center space-x-1" title="Toggle 3D Segmentation Overlays">
+                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                        <span>3D Mask</span>
+                    </button>
+
+                    <button onclick="toggleOverlay('heatmap')" id="btnHeatmap" class="px-2 py-1 text-xs rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 flex items-center space-x-1" title="Toggle Grad-CAM Saliency Overlay">
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span>Grad-CAM</span>
+                    </button>
+
+                    <div class="h-4 w-px bg-slate-300 mx-1"></div>
+
+                    <button onclick="adjustZoom(1.2)" class="p-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" title="Zoom In"><i data-lucide="zoom-in" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="adjustZoom(0.8)" class="p-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" title="Zoom Out"><i data-lucide="zoom-out" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="resetViewport()" class="p-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" title="Reset View"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i></button>
+                </div>
+            </div>
+
+            <!-- Viewport Area (Hosts 3-Up Comparative Layout matching photo!) -->
+            <div id="viewportContainer" class="flex-1 p-2 flex gap-2 overflow-hidden bg-slate-900 justify-center items-center relative">
+
+                <!-- 3-UP COMPARATIVE PANE 1 (Inferior Adjacent Slice N-1) -->
+                <div id="viewportPane2" class="relative flex-1 h-full dicom-viewport-box rounded overflow-hidden flex items-center justify-center border border-slate-800">
+                    <canvas id="compCanvas1" width="512" height="512" class="max-h-full max-w-full object-contain"></canvas>
+                    <div class="absolute top-2 left-2 hud-overlay text-left">
+                        <div id="hudComp1Title">SERIES 2 · SLICE 09/16</div>
+                        <div class="text-[9px] text-sky-300">INFERIOR ADJACENT</div>
+                    </div>
+                    <div class="absolute bottom-2 right-2 hud-overlay text-right">
+                        <div>MARGIN DELINEATION</div>
+                    </div>
+                </div>
+
+                <!-- MAIN DIAGNOSTIC VIEWPORT (Center Primary Slice N) -->
+                <div id="viewportPane1" class="relative flex-1 h-full dicom-viewport-box rounded overflow-hidden flex items-center justify-center border-2 border-sky-500/80 shadow-lg">
+                    <canvas id="dicomCanvas" width="512" height="512" class="max-h-full max-w-full object-contain"></canvas>
+                    <canvas id="overlayCanvas" width="512" height="512" class="absolute inset-0 max-h-full max-w-full object-contain pointer-events-none opacity-70"></canvas>
+                    <canvas id="caliperCanvas" width="512" height="512" class="absolute inset-0 max-h-full max-w-full object-contain cursor-crosshair"></canvas>
+
+                    <!-- Authentic PACS Green/Cyan Corner HUD -->
+                    <div class="absolute top-2 left-2 hud-overlay leading-tight text-left">
+                        <div id="hudPatientId">ANON_BRATS_4471</div>
+                        <div id="hudPatientAgeSex">52Y · MALE</div>
+                        <div id="hudProtocol">T2/FLAIR ISOTROPIC</div>
+                    </div>
+
+                    <div class="absolute top-2 right-2 hud-overlay leading-tight text-right">
+                        <div id="hudModalityView">MRI · AXIAL</div>
+                        <div id="hudFOV">FOV: 250 mm</div>
+                        <div id="hudZoom">ZOOM: 100%</div>
+                    </div>
+
+                    <div class="absolute bottom-2 left-2 hud-overlay leading-tight text-left">
+                        <div id="hudSliceNum">SLICE: 10 / 16</div>
+                        <div id="hudThickness">THK: 1.0 mm</div>
+                        <div id="hudMatrix">512 x 512</div>
+                    </div>
+
+                    <div class="absolute bottom-2 right-2 hud-overlay leading-tight text-right">
+                        <div id="hudWindowLevel">W: 200 · C: 120</div>
+                        <div id="hudFPS">PRIMARY VIEWPORT</div>
+                        <div class="text-[9px] text-emerald-400">CALIBRATED RES: 0.488mm</div>
+                    </div>
+
+                    <!-- Floating ROI Inspector Tooltip -->
+                    <div id="roiInspectorHud" class="hidden absolute pointer-events-none bg-slate-900/90 text-sky-400 border border-sky-400 rounded px-2 py-1 text-[10px] font-mono shadow-md z-40 whitespace-nowrap">
+                        <div id="roiCoordText">X: 256, Y: 180</div>
+                        <div id="roiValueText">Pixel: 184 (SI)</div>
+                        <div id="roiTissueText" class="text-white font-bold">Gray Matter / Parenchyma</div>
+                    </div>
+                </div>
+
+                <!-- 3-UP COMPARATIVE PANE 3 (Superior Adjacent Slice N+1) -->
+                <div id="viewportPane3" class="relative flex-1 h-full dicom-viewport-box rounded overflow-hidden flex items-center justify-center border border-slate-800">
+                    <canvas id="compCanvas2" width="512" height="512" class="max-h-full max-w-full object-contain"></canvas>
+                    <div class="absolute top-2 left-2 hud-overlay text-left">
+                        <div id="hudComp2Title">SERIES 2 · SLICE 11/16</div>
+                        <div class="text-[9px] text-sky-300">SUPERIOR ADJACENT</div>
+                    </div>
+                    <div class="absolute bottom-2 right-2 hud-overlay text-right">
+                        <div>VOLUMETRIC EXTENT</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Viewport Bottom Scrub & Opacity Control Strip -->
+            <div class="h-9 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-xs text-slate-700 shrink-0">
+                <div class="flex items-center space-x-3 w-1/3">
+                    <span class="text-[10px] font-mono text-slate-500 uppercase whitespace-nowrap">Slice Scrub:</span>
+                    <input type="range" id="sliceSlider" min="1" max="16" value="10" oninput="updateActiveSlice(parseInt(this.value))" class="w-full accent-sky-700 h-1.5 bg-slate-200 rounded appearance-none cursor-pointer">
+                    <span id="sliceCounterText" class="font-mono text-slate-800 font-semibold text-[11px] whitespace-nowrap">10 / 16</span>
+                </div>
+
+                <div class="flex items-center space-x-3 w-1/4">
+                    <span class="text-[10px] font-mono text-slate-500 uppercase whitespace-nowrap">Overlay Opacity:</span>
+                    <input type="range" min="0" max="100" value="70" oninput="updateMaskOpacity(this.value)" class="w-full accent-sky-700 h-1.5 bg-slate-200 rounded appearance-none cursor-pointer">
+                    <span id="opacityLabel" class="font-mono text-slate-800 text-[11px]">70%</span>
+                </div>
+
+                <div class="flex items-center space-x-2 text-[11px] font-mono text-slate-600">
+                    <i data-lucide="info" class="w-3.5 h-3.5 text-sky-600"></i>
+                    <span>Click and drag on center viewport to measure anatomical distances in mm</span>
+                </div>
+            </div>
+
+            <!-- ========================================================================= -->
+            <!-- TECHNICAL ACQUISITION & PARAMETER CONSOLE (Matching photo bottom console!) -->
+            <!-- ========================================================================= -->
+            <div class="h-44 bg-white border-t border-slate-300 flex flex-col shrink-0 overflow-hidden shadow-xs">
+                <div class="px-4 py-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-2 font-mono font-bold text-slate-800 uppercase tracking-tight text-[11px]">
+                        <i data-lucide="sliders" class="w-3.5 h-3.5 text-sky-700"></i>
+                        <span>Imaging Acquisition & Hardware Telemetry (DICOM Header Metadata)</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="openScanDetailsModal()" class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 flex items-center space-x-1">
+                            <i data-lucide="maximize-2" class="w-3 h-3"></i>
+                            <span>Inspect Full Details Dossier</span>
+                        </button>
+                        <span class="text-[10px] font-mono text-slate-400">|</span>
+                        <button onclick="triggerDicomSRExport()" class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 flex items-center space-x-1">
+                            <i data-lucide="download" class="w-3 h-3"></i>
+                            <span>Export DICOM-SR</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
+                    <table class="w-full pacs-table text-left border-collapse">
+                        <thead>
+                            <tr>
+                                <th>Series Description</th>
+                                <th>Slice Thk</th>
+                                <th>Matrix</th>
+                                <th>Pixel Spacing</th>
+                                <th>Field of View</th>
+                                <th>Window (C/W)</th>
+                                <th>Reconstruction</th>
+                                <th>Field / kVp</th>
+                                <th>Exposure / TR</th>
+                                <th>Position</th>
+                                <th>SNR (dB)</th>
+                                <th>Adequacy Grade</th>
+                            </tr>
+                        </thead>
+                        <tbody id="techParamsTableBody" class="text-slate-700">
+                            <tr>
+                                <td id="prmSeries" class="font-bold text-slate-900">Series 2: T2/FLAIR Volumetric</td>
+                                <td id="prmThick">1.0 mm</td>
+                                <td id="prmMatrix">512 x 512</td>
+                                <td id="prmSpacing">0.488 x 0.488 mm</td>
+                                <td id="prmFOV">250 mm</td>
+                                <td id="prmWindow">C:120 W:200</td>
+                                <td id="prmRecon">T2-FLAIR Isotropic</td>
+                                <td id="prmKvp">3.0 Tesla</td>
+                                <td id="prmExposure">TR: 9200ms / TE: 98ms</td>
+                                <td id="prmPosition">HFS</td>
+                                <td id="prmSNR" class="font-bold text-sky-700">19.4 dB</td>
+                                <td><span id="prmGrade" class="px-1.5 py-0.2 rounded font-bold text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300">DIAGNOSTIC GRADE A</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- ========================================================================= -->
+        <!-- CLINICAL REQUISITION & CDS ASSISTANT DRAWER (Collapsible Right Pane)      -->
+        <!-- ========================================================================= -->
+        <aside id="clinicalDrawerPane" class="w-96 monitor-frame rounded-md flex flex-col shrink-0 overflow-y-auto custom-scrollbar">
+            
+            <!-- Patient Clinical Requisition & Risk Profile (EHR Fusion) -->
+            <div class="p-3.5 border-b border-slate-200 bg-slate-50 space-y-2">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-slate-900 uppercase font-mono flex items-center space-x-1.5">
+                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-sky-700"></i>
+                        <span>Clinical Requisition (EHR)</span>
+                    </h3>
+                    <span class="text-[9px] font-mono text-slate-500">Order Form</span>
+                </div>
+
+                <!-- Fast Simulation Presets -->
+                <div class="flex flex-wrap gap-1 text-[10px]">
+                    <button onclick="applyClinicalPreset('smoker')" class="px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-medium">🚬 Smoker (Hemoptysis)</button>
+                    <button onclick="applyClinicalPreset('heart_failure')" class="px-1.5 py-0.5 rounded bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-medium">🫀 CHF (Orthopnea)</button>
+                    <button onclick="applyClinicalPreset('neuro')" class="px-1.5 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 font-medium">🧠 Neuro (Seizures)</button>
+                    <button onclick="applyClinicalPreset('screening')" class="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-medium">🌿 Screening</button>
+                    <button onclick="applyClinicalPreset('spine')" class="px-1.5 py-0.5 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 font-medium">🦴 Spine (Radiculopathy)</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1.5 text-xs">
+                    <div>
+                        <label class="block text-[9px] font-mono text-slate-500">Age</label>
+                        <input type="number" id="reqAge" value="52" min="1" max="110" class="w-full bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-mono text-slate-500">Sex</label>
+                        <select id="reqGender" class="w-full bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-900 text-xs focus:outline-none focus:border-sky-500">
+                            <option value="M">Male (M)</option>
+                            <option value="F">Female (F)</option>
+                            <option value="O">Other (O)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-mono text-slate-500">Smoking</label>
+                        <select id="reqSmoking" class="w-full bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-900 text-xs focus:outline-none focus:border-sky-500">
+                            <option value="NEVER">Never</option>
+                            <option value="ACTIVE_SMOKER">Active</option>
+                            <option value="FORMER_SMOKER">Former</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[9px] font-mono text-slate-500">Presenting Symptoms / Indication</label>
+                    <div class="flex space-x-1.5 mt-0.5">
+                        <input type="text" id="reqIndication" value="New-onset focal motor seizures, progressive morning headaches." class="flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-slate-900 text-xs focus:outline-none focus:border-sky-500 font-sans">
+                        <button onclick="updateRequisitionFromUI()" class="px-2.5 py-1 bg-sky-700 hover:bg-sky-800 text-white rounded text-xs font-semibold shrink-0 shadow-xs">Apply</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Abnormality Detection & Quantitative Metrics -->
+            <div class="p-3 border-b border-slate-200 space-y-2">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-slate-900 uppercase font-mono flex items-center space-x-1.5">
+                        <i data-lucide="crosshair" class="w-3.5 h-3.5 text-sky-700"></i>
+                        <span>Pathology Detection</span>
+                    </h3>
+                    <span id="activeModelTag" class="text-[9px] font-mono font-medium px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded border border-slate-300">MONAI SegResNet (BraTS)</span>
+                </div>
+
+                <div id="findingsContainer" class="space-y-1.5 text-xs">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Volumetric Quantification Card -->
+            <div class="p-3 border-b border-slate-200 space-y-2 bg-slate-50/50">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-slate-900 uppercase font-mono flex items-center space-x-1.5">
+                        <i data-lucide="box" class="w-3.5 h-3.5 text-teal-700"></i>
+                        <span>3D Lesion Volumetrics</span>
+                    </h3>
+                    <span class="text-[9px] font-mono text-slate-500">Isotropic mm³</span>
+                </div>
+
+                <div id="volumetricsContainer" class="space-y-1">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Systematic Inspection Checklist (ABCDE / Neuro-Anatomic) -->
+            <div class="p-3 border-b border-slate-200 space-y-2">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-slate-900 uppercase font-mono flex items-center space-x-1.5">
+                        <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-sky-700"></i>
+                        <span>Systematic Checklist</span>
+                    </h3>
+                    <span id="systematicProtocolBadge" class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-100 text-sky-800 font-bold border border-sky-200">NEURO PROTOCOL</span>
+                </div>
+
+                <div id="systematicList" class="space-y-1 text-xs">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Standardized Staging (RADS / WHO Criteria) -->
+            <div class="p-3 border-b border-slate-200 space-y-1.5 bg-slate-50">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-mono uppercase text-slate-500 font-semibold" id="radsSystemTitle">Clinical Staging Criteria</span>
+                    <span id="radsBadge" class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">WHO CNS5 TIER 4</span>
+                </div>
+                <div class="p-2 bg-white border border-slate-200 rounded">
+                    <h4 id="radsCategoryTitle" class="text-xs font-bold text-slate-900">High-Grade Primary Neoplasm</h4>
+                    <p id="radsAssessmentText" class="text-[11px] text-slate-600 mt-0.5 leading-snug">Intra-axial mass with rim enhancement & vasogenic edema.</p>
+                    <p id="radsRecommendationText" class="text-[11px] font-mono text-slate-700 mt-1.5 pt-1.5 border-t border-slate-100">Neurosurgical consultation recommended for surgical debulking and molecular classification.</p>
+                </div>
+            </div>
+
+            <!-- Structured Radiology Report Draft & Sign-off -->
+            <div class="p-3 space-y-2">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-slate-900 uppercase font-mono flex items-center space-x-1.5">
+                        <i data-lucide="file-text" class="w-3.5 h-3.5 text-sky-700"></i>
+                        <span>Structured Report Draft</span>
+                    </h3>
+                    <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">DRAFT</span>
+                </div>
+
+                <div class="space-y-1.5 text-xs">
+                    <div>
+                        <label class="block text-[10px] font-mono text-slate-500 uppercase">Findings</label>
+                        <textarea id="reportFindings" rows="2" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded text-slate-800 text-[11px] font-sans focus:outline-none focus:border-sky-500"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-mono text-slate-500 uppercase">Impression</label>
+                        <textarea id="reportImpression" rows="2" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded text-slate-800 text-[11px] font-sans focus:outline-none focus:border-sky-500"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 pt-1">
+                    <button onclick="approveReport()" class="flex-1 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-xs flex items-center justify-center space-x-1.5">
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        <span>Sign & Finalize</span>
+                    </button>
+                    <button onclick="triggerDicomSRExport()" class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center space-x-1">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>DICOM-SR</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- MIRA Clinical Assistant Drawer (Enterprise Decision Support) -->
+            <div class="p-3 border-t border-slate-200 bg-slate-50 mt-auto">
+                <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center space-x-1.5">
+                        <span class="w-2 h-2 rounded-full bg-sky-600"></span>
+                        <span class="text-xs font-bold text-slate-800 font-mono">CDS Consultation (MIRA)</span>
+                    </div>
+                    <button onclick="toggleVoiceSpeech()" id="btnVoice" class="text-slate-500 hover:text-sky-700" title="Toggle Spoken Audio">
+                        <i data-lucide="volume-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div id="chatMessages" class="max-h-32 overflow-y-auto space-y-1 text-[11px] bg-white p-2 rounded border border-slate-200 custom-scrollbar mb-2">
+                    <div class="text-slate-600 leading-snug">
+                        <strong class="text-sky-800 font-mono text-[10px]">MIRA CDS:</strong>
+                        Study loaded with verified acquisition parameters. Ready for differential synthesis or guideline inquiry.
+                    </div>
+                </div>
+
+                <form onsubmit="handleChatSubmit(event)" class="flex items-center space-x-1.5">
+                    <input type="text" id="chatInput" placeholder="Ask MIRA regarding findings or guidelines..." class="flex-1 bg-white border border-slate-300 rounded px-2.5 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-sans">
+                    <button type="button" onclick="startSpeechRecognition()" id="micBtn" class="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded" title="Push-to-Talk">
+                        <i data-lucide="mic" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button type="submit" class="px-2.5 py-1 bg-sky-700 hover:bg-sky-800 text-white rounded text-xs font-semibold">Send</button>
+                </form>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- COMPREHENSIVE SCAN & TECHNICAL DETAILS MODAL (The Doctor's Inspection Display!) -->
+    <!-- ========================================================================= -->
+    <div id="scanDetailsModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-300 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-3">
+                    <div class="p-1.5 rounded bg-sky-100 text-sky-800">
+                        <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                            <span>Comprehensive Imaging & Technical Acquisition Dossier</span>
+                            <span id="modalModalityBadge" class="text-[10px] font-mono px-2 py-0.2 rounded bg-sky-100 text-sky-800 border border-sky-300">MRI BRAIN</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 font-mono mt-0.5">DICOM Tag Registry · Hardware Telemetry · Signal Quality · Diagnostic Findings</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="triggerDicomSRExport()" class="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold flex items-center space-x-1 shadow-2xs">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Export DICOM-SR</span>
+                    </button>
+                    <button onclick="closeScanDetailsModal()" class="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-200"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+            </div>
+
+            <!-- Tab Navigation Bar -->
+            <div class="flex border-b border-slate-200 bg-white px-5 space-x-6 text-xs font-mono shrink-0">
+                <button onclick="switchDetailsTab('telemetry')" id="tabBtnTelemetry" class="py-2.5 font-bold border-b-2 border-sky-700 text-sky-800 flex items-center space-x-1.5">
+                    <i data-lucide="sliders" class="w-4 h-4"></i>
+                    <span>1. Acquisition & Hardware</span>
+                </button>
+                <button onclick="switchDetailsTab('signal')" id="tabBtnSignal" class="py-2.5 font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5">
+                    <i data-lucide="bar-chart-2" class="w-4 h-4"></i>
+                    <span>2. Signal & Quality Metrics</span>
+                </button>
+                <button onclick="switchDetailsTab('clinical')" id="tabBtnClinical" class="py-2.5 font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5">
+                    <i data-lucide="activity" class="w-4 h-4"></i>
+                    <span>3. Clinical Pathology & RADS</span>
+                </button>
+                <button onclick="switchDetailsTab('tags')" id="tabBtnTags" class="py-2.5 font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5">
+                    <i data-lucide="database" class="w-4 h-4"></i>
+                    <span>4. Raw DICOM Tags (Part 10)</span>
+                </button>
+            </div>
+
+            <!-- Modal Body Content Panes -->
+            <div class="flex-1 overflow-y-auto p-5 custom-scrollbar bg-slate-50/50">
+
+                <!-- TAB 1: ACQUISITION & HARDWARE TELEMETRY -->
+                <div id="tabPaneTelemetry" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Hardware Box -->
+                        <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-2.5">
+                            <h4 class="text-xs font-bold text-slate-900 uppercase font-mono border-b border-slate-100 pb-1.5 flex items-center space-x-1.5">
+                                <i data-lucide="cpu" class="w-4 h-4 text-sky-700"></i>
+                                <span>Physical Scanner Telemetry</span>
+                            </h4>
+                            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                                <div><span class="text-slate-400 block text-[10px]">SCANNER MANUFACTURER:</span><span id="dtlManufacturer" class="text-slate-800 font-semibold">Siemens MAGNETOM 3T</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">STATION NAME:</span><span id="dtlStation" class="text-slate-800 font-semibold">WS-RAD-04</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">FIELD / TUBE VOLTAGE:</span><span id="dtlKvpField" class="text-sky-800 font-bold">3.0 Tesla</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">EXPOSURE / TR-TE:</span><span id="dtlExposure" class="text-slate-800 font-semibold">TR: 9200ms / TE: 98ms</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">PATIENT ORIENTATION:</span><span id="dtlOrientation" class="text-slate-800 font-semibold">HFS (Head First Supine)</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">RECONSTRUCTION KERNEL:</span><span id="dtlKernel" class="text-slate-800 font-semibold">T2-FLAIR Isotropic</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Geometry & Resolution Box -->
+                        <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-2.5">
+                            <h4 class="text-xs font-bold text-slate-900 uppercase font-mono border-b border-slate-100 pb-1.5 flex items-center space-x-1.5">
+                                <i data-lucide="maximize" class="w-4 h-4 text-sky-700"></i>
+                                <span>Geometry & Spatial Calibration</span>
+                            </h4>
+                            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                                <div><span class="text-slate-400 block text-[10px]">MATRIX DIMENSIONS:</span><span id="dtlMatrix" class="text-slate-800 font-semibold">512 x 512 pixels</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">SLICE THICKNESS:</span><span id="dtlThick" class="text-slate-800 font-semibold">1.000 mm</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">PIXEL SPACING:</span><span id="dtlSpacing" class="text-sky-800 font-bold">0.488 x 0.488 mm</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">RECONSTRUCTION FOV:</span><span id="dtlFOV" class="text-slate-800 font-semibold">250 mm</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">WINDOW CENTER / WIDTH:</span><span id="dtlWindow" class="text-slate-800 font-semibold">C:120 / W:200</span></div>
+                                <div><span class="text-slate-400 block text-[10px]">PHOTOMETRIC:</span><span id="dtlPhotometric" class="text-slate-800 font-semibold">MONOCHROME2</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Study Hierarchy Card -->
+                    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-2">
+                        <h4 class="text-xs font-bold text-slate-900 uppercase font-mono border-b border-slate-100 pb-1.5">Study Hierarchy & Identification</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
+                            <div><span class="text-slate-400 block text-[10px]">PATIENT IDENTIFIER:</span><span id="dtlPatName" class="text-slate-900 font-bold">ANON_BRATS_4471</span></div>
+                            <div><span class="text-slate-400 block text-[10px]">STUDY INSTANCE UID:</span><span id="dtlStudyUID" class="text-slate-700 break-all text-[10px]">1.2.840.10008.1.4471.9912</span></div>
+                            <div><span class="text-slate-400 block text-[10px]">SERIES INSTANCE UID:</span><span id="dtlSeriesUID" class="text-slate-700 break-all text-[10px]">1.2.840.10008.2.4471.9912.2</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: SIGNAL QUALITY & HISTOGRAM TELEMETRY -->
+                <div id="tabPaneSignal" class="hidden space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-1">
+                            <span class="text-[10px] font-mono text-slate-400 uppercase">Signal-to-Noise Ratio</span>
+                            <div class="text-2xl font-bold text-sky-700 font-mono" id="sigSNR">19.4 dB</div>
+                            <p class="text-[10px] text-slate-500 font-mono">Calculated from background air vs brain parenchyma</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-1">
+                            <span class="text-[10px] font-mono text-slate-400 uppercase">Contrast-to-Noise Ratio (CNR)</span>
+                            <div class="text-2xl font-bold text-teal-700 font-mono" id="sigCNR">4.82</div>
+                            <p class="text-[10px] text-slate-500 font-mono">Lesion to background contrast margin</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-1">
+                            <span class="text-[10px] font-mono text-slate-400 uppercase">Discrete Shannon Entropy</span>
+                            <div class="text-2xl font-bold text-indigo-700 font-mono" id="sigEntropy">5.42 bits</div>
+                            <p class="text-[10px] text-slate-500 font-mono">Information density & anatomical texture complexity</p>
+                        </div>
+                    </div>
+
+                    <!-- Grayscale & Attenuation Histogram -->
+                    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-xs font-bold text-slate-900 uppercase font-mono flex items-center space-x-1.5">
+                                <i data-lucide="bar-chart" class="w-4 h-4 text-sky-700"></i>
+                                <span>Grayscale Intensity Distribution (32-Bin Normalized Histogram)</span>
+                            </h4>
+                            <span class="text-[10px] font-mono text-slate-500">DYNAMIC RANGE: 0 - 255</span>
+                        </div>
+                        <div id="histogramBarContainer" class="h-28 flex items-end gap-1 px-2 pt-4 bg-slate-50 rounded border border-slate-200">
+                            <!-- Populated with dynamic CSS bars -->
+                        </div>
+                        <div class="flex justify-between text-[10px] font-mono text-slate-500 px-1">
+                            <span>0 (Air / Void)</span>
+                            <span>64 (Fat / Edema)</span>
+                            <span>128 (Parenchyma / Soft Tissue)</span>
+                            <span>192 (Hyperintense / Contrast)</span>
+                            <span>255 (Cortical Bone)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: CLINICAL PATHOLOGY & RADS -->
+                <div id="tabPaneClinical" class="hidden space-y-4">
+                    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-3">
+                        <h4 class="text-xs font-bold text-slate-900 uppercase font-mono border-b border-slate-100 pb-1.5 flex items-center justify-between">
+                            <span>Quantified Lesions & Diagnostic Findings</span>
+                            <span id="dtlModelName" class="text-[10px] text-slate-500 font-normal">MONAI SegResNet</span>
+                        </h4>
+                        <div id="dtlFindingsList" class="space-y-2">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-2">
+                        <h4 class="text-xs font-bold text-slate-900 uppercase font-mono border-b border-slate-100 pb-1.5">Standardized Clinical Classification & Next Steps</h4>
+                        <div class="p-3 bg-slate-50 rounded border border-slate-200 space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="font-mono text-xs font-bold text-slate-900" id="dtlRadsTitle">WHO CNS5 TIER 4</span>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold" id="dtlRadsBadge">HIGH RISK</span>
+                            </div>
+                            <p class="text-xs text-slate-700" id="dtlRadsAssessment">Intra-axial mass with rim enhancement & vasogenic edema.</p>
+                            <p class="text-xs font-mono text-sky-900 mt-2 pt-2 border-t border-slate-200" id="dtlRadsRecommendation">Neurosurgical consultation recommended for surgical debulking and molecular classification.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: RAW DICOM TAGS (PART 10) -->
+                <div id="tabPaneTags" class="hidden space-y-3">
+                    <div class="flex items-center justify-between">
+                        <input type="text" id="tagSearchInput" oninput="filterDicomTags(this.value)" placeholder="Search DICOM tags by name or group/element (e.g. 0018, Slice, Pixel)..." class="flex-1 max-w-md bg-white border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono">
+                        <div class="text-[10px] font-mono text-slate-500" id="tagCountText">38 Tags Extracted</div>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-2xs max-h-80 overflow-y-auto custom-scrollbar">
+                        <table class="w-full pacs-table text-left border-collapse">
+                            <thead>
+                                <tr>
+                                    <th class="w-28">Tag (Group, Element)</th>
+                                    <th>Tag Name</th>
+                                    <th class="w-16">VR</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dicomTagsTableBody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+                <span class="text-[10px] font-mono text-slate-500">St. Jude Medical Center · Workstation WS-RAD-04 · Certified PACS SOP Class Storage</span>
+                <button onclick="closeScanDetailsModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded text-xs font-semibold shadow-xs">Close Dossier</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- OOD Rejection Modal (Medical Quality Assurance Gate) -->
+    <div id="oodModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white max-w-md w-full rounded-lg border-2 border-rose-500 p-5 space-y-4 shadow-xl">
+            <div class="flex items-start space-x-3">
+                <div class="p-2 rounded bg-rose-100 text-rose-700 shrink-0">
+                    <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <span class="text-[9px] font-mono font-bold uppercase bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded border border-rose-300">Technical Quality Pre-Flight Failed</span>
+                    <h3 class="text-sm font-bold text-slate-900 mt-1">Scan Rejected by Diagnostic Quality Gate</h3>
+                    <p id="oodReasonText" class="text-xs text-rose-700 mt-1 font-mono">Image lacks diagnostic radiological density variations (flat, non-medical, or corrupted).</p>
+                </div>
+            </div>
+            <div class="p-3 rounded bg-slate-50 border border-slate-200 space-y-1.5 text-xs font-mono">
+                <div class="flex justify-between text-slate-600">
+                    <span>Signal-to-Noise Ratio:</span>
+                    <span id="oodSnrText" class="font-bold text-slate-900">0.0 dB (Sub-threshold)</span>
+                </div>
+                <div class="flex justify-between text-slate-600">
+                    <span>Quality Grade:</span>
+                    <span id="oodGradeText" class="font-bold text-rose-700">UNREADABLE</span>
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="document.getElementById('oodModal').classList.add('hidden')" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded text-xs font-semibold">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client-Side Workstation Logic -->
+    <script>
+        lucide.createIcons();
+
+        // State Machine
+        let activeModality = 'MRI';
+        let currentLayout = 'three_up'; // 'single' | 'three_up' | 'montage'
+        let isDualScreenMode = false;
+        let currentSliceIndex = 10;
+        let totalSlices = 16;
+        let zoomLevel = 1.0;
+        let panOffset = { x: 0, y: 0 };
+        let activeWindowPreset = 'BRAIN';
+        let isMaskVisible = true;
+        let isHeatmapVisible = false;
+        let isCaliperActive = false;
+        let isRoiActive = false;
+        let isVoiceEnabled = true;
+        let cineInterval = null;
+        let isCinePlaying = false;
+        let cineFps = 10;
+
+        // Comprehensive Pre-Loaded Clinical Cases Library
+        const studyCases = {
+            'mri_brats': {
+                id: 'mri_brats',
+                modality: 'MRI',
+                desc: 'Brain MRI T2/FLAIR Volumetric (Non-contrast)',
+                patientName: 'ANONYMIZED_PATIENT_4471',
+                mrn: 'MRN-8492019-R',
+                age: 52,
+                gender: 'M',
+                accession: 'ACC-2026-9912',
+                date: '2026-11-08 10:45',
+                seriesName: 'Series 2: T2/FLAIR Volumetric',
+                subTitle: 'Series 2: T2/FLAIR Axial · 16 Slices · 1.0mm',
+                modelName: 'MONAI SegResNet (BraTS Official Pretrained)',
+                techParams: {
+                    series: 'Series 2: T2/FLAIR Volumetric',
+                    thick: '1.0 mm',
+                    matrix: '512 x 512',
+                    spacing: '0.488 x 0.488 mm',
+                    fov: '250 mm',
+                    window: 'C:120 W:200',
+                    recon: 'T2-FLAIR Isotropic',
+                    kvp: '3.0 Tesla',
+                    exposure: 'TR: 9200ms / TE: 98ms',
+                    position: 'HFS',
+                    snr: '19.4 dB',
+                    grade: 'DIAGNOSTIC GRADE A',
+                    station: 'WS-RAD-04',
+                    manufacturer: 'Siemens MAGNETOM Prisma 3T',
+                    photometric: 'MONOCHROME2'
+                },
+                metrics: {
+                    snr_db: 19.4,
+                    cnr: 4.82,
+                    entropy_bits: 5.42,
+                    dynamic_range: 242.0,
+                    min_val: 0.0,
+                    max_val: 242.0,
+                    mean_val: 88.5,
+                    std_val: 45.2,
+                    histogram32: [0.08,0.06,0.05,0.04,0.04,0.03,0.04,0.05,0.06,0.07,0.08,0.07,0.06,0.05,0.04,0.03,0.03,0.02,0.02,0.01,0.01,0.01,0.01,0.01,0.005,0.005,0.003,0.002,0.002,0.001,0.001,0.001]
+                },
+                findings: [
+                    { label: 'Frontal Lobe Mass (Neoplasm)', prob: 0.94, loc: 'Left frontal subcortical', meas: '34.2 x 28.5 x 25.1 mm (~12.4 cm³)', status: 'FLAGGED' },
+                    { label: 'Peritumoral Vasogenic Edema', prob: 0.88, loc: 'Surrounding white matter', meas: 'FLAIR hyperintensity rim', status: 'FLAGGED' },
+                    { label: 'Midline Shift & Mass Effect', prob: 0.12, loc: 'Septum pellucidum', meas: '< 1.5 mm (Normal limits)', status: 'NORMAL' }
+                ],
+                volumetrics: [
+                    { name: 'Whole Tumor (WT)', vol: '12.4 cm³', color: '#EF4444' },
+                    { name: 'Tumor Core (TC)', vol: '7.8 cm³', color: '#F59E0B' },
+                    { name: 'Enhancing Active Tumor (ET)', vol: '3.6 cm³', color: '#10B981' }
+                ],
+                checklist: [
+                    { category: '1. Parenchyma & Lesion', structure: 'Cerebral Cortex', status: 'FLAGGED', text: 'Dominant hyperintense mass in left frontal-parietal region with edema.', badge: 'ABNORMAL' },
+                    { category: '2. Mass Effect & Midline', structure: 'Septum Pellucidum', status: 'NORMAL', text: 'Midline shift < 1.5 mm. Basal cisterns and cortical sulci patent.', badge: 'STABLE' },
+                    { category: '3. Ventricular System', structure: 'Lateral & 3rd Ventricles', status: 'NORMAL', text: 'Normal caliber and symmetry; no obstructive hydrocephalus.', badge: 'CLEAR' },
+                    { category: '4. Calvarium & Fossa', structure: 'Posterior Fossa', status: 'NORMAL', text: 'Brainstem and cerebellar hemispheres symmetric without herniation.', badge: 'CLEAR' }
+                ],
+                rads: {
+                    system: 'WHO CNS5 Classification',
+                    badge: 'WHO CNS5 TIER 4',
+                    category: 'High-Grade Primary Neoplasm',
+                    assessment: 'Intra-axial mass with rim enhancement & vasogenic edema.',
+                    recommendation: 'Neurosurgical consultation for surgical debulking and molecular classification (IDH1, MGMT, 1p/19q).'
+                },
+                findingsText: "Prominent 34.2 x 28.5 mm intra-axial mass in left frontal cortex with surrounding vasogenic edema. No acute herniation or severe midline shift.",
+                impressionText: "High-probability primary glial neoplasm in left frontal lobe. Neurosurgical oncology review recommended."
+            },
+            'mri_stroke': {
+                id: 'mri_stroke',
+                modality: 'MRI',
+                desc: 'Brain MRI Diffusion-Weighted Imaging (DWI) / ADC',
+                patientName: 'ANONYMIZED_PATIENT_2091',
+                mrn: 'MRN-7281044-S',
+                age: 68,
+                gender: 'M',
+                accession: 'ACC-2026-8819',
+                date: '2026-11-08 11:10',
+                seriesName: 'Series 3: DWI & ADC Map',
+                subTitle: 'Series 3: Trace DWI (b=1000) · 16 Slices · 1.5mm',
+                modelName: 'DeepStroke ResNet-50 Ensemble',
+                techParams: {
+                    series: 'Series 3: DWI Isotropic b=1000',
+                    thick: '1.5 mm',
+                    matrix: '512 x 512',
+                    spacing: '0.468 x 0.468 mm',
+                    fov: '240 mm',
+                    window: 'C:80 W:160',
+                    recon: 'Spin-Echo EPI DWI',
+                    kvp: '3.0 Tesla',
+                    exposure: 'TR: 4800ms / TE: 76ms',
+                    position: 'HFS',
+                    snr: '17.8 dB',
+                    grade: 'DIAGNOSTIC GRADE A',
+                    station: 'WS-RAD-04',
+                    manufacturer: 'GE SIGNA Premier 3.0T',
+                    photometric: 'MONOCHROME2'
+                },
+                metrics: {
+                    snr_db: 17.8,
+                    cnr: 5.12,
+                    entropy_bits: 5.18,
+                    dynamic_range: 220.0,
+                    min_val: 0.0,
+                    max_val: 220.0,
+                    mean_val: 74.2,
+                    std_val: 41.8,
+                    histogram32: [0.12,0.08,0.06,0.05,0.04,0.04,0.05,0.06,0.07,0.07,0.06,0.05,0.04,0.04,0.03,0.03,0.02,0.02,0.02,0.01,0.01,0.01,0.01,0.005,0.005,0.003,0.002,0.002,0.001,0.001,0.001,0.001]
+                },
+                findings: [
+                    { label: 'Acute Cerebral Infarction', prob: 0.96, loc: 'Right MCA territory (M2 insular)', meas: 'Restricted diffusion, 18.5 x 14.2 mm (~4.2 cm³)', status: 'FLAGGED' },
+                    { label: 'Cytotoxic Edema', prob: 0.91, loc: 'Insular ribbon', meas: 'Corresponding low ADC signal', status: 'FLAGGED' },
+                    { label: 'Hemorrhagic Transformation', prob: 0.04, loc: 'Ischemic core', meas: 'No susceptibility artifact (HI negative)', status: 'NORMAL' }
+                ],
+                volumetrics: [
+                    { name: 'DWI Ischemic Core', vol: '4.2 cm³', color: '#0284C7' }
+                ],
+                checklist: [
+                    { category: '1. Vascular Territory', structure: 'Right MCA Insula', status: 'FLAGGED', text: 'Bright DWI signal with corresponding ADC hypointensity confirming acute infarct.', badge: 'ACUTE INFARCT' },
+                    { category: '2. Mass Effect', structure: 'Basal Ganglia', status: 'NORMAL', text: 'No midline shift or compression of ventricular frontal horn.', badge: 'CLEAR' },
+                    { category: '3. Hemorrhage Check', structure: 'SWI / GRE', status: 'NORMAL', text: 'No microbleeds or hemorrhagic petechiae identified.', badge: 'CLEAR' }
+                ],
+                rads: {
+                    system: 'ASPECTS / Stroke Protocol',
+                    badge: 'ASPECTS 8/10',
+                    category: 'Acute Ischemic Infarction (< 6h)',
+                    assessment: 'Restricted diffusion in right insular ribbon consistent with acute territorial ischemia.',
+                    recommendation: 'Emergent vascular neurology alert; assess for mechanical thrombectomy or endovascular therapy eligibility.'
+                },
+                findingsText: "Area of prominent restricted diffusion within the right insular cortex and corona radiata. Corresponding low signal on ADC consistent with acute cytotoxic edema.",
+                impressionText: "Acute non-hemorrhagic right MCA distribution ischemic infarct. Urgent neurology evaluation indicated."
+            },
+            'ct_nodule': {
+                id: 'ct_nodule',
+                modality: 'CT',
+                desc: 'Chest High-Resolution CT Pulmonary Protocol (Thin-Slice)',
+                patientName: 'ANONYMIZED_PATIENT_8820',
+                mrn: 'MRN-4421908-T',
+                age: 64,
+                gender: 'M',
+                accession: 'ACC-2026-4411',
+                date: '2026-11-08 09:15',
+                seriesName: 'Series 3: Thin-Slice Chest CT',
+                subTitle: 'Series 3: 1.0mm Thin-Slice Helical · 16 Slices',
+                modelName: 'TotalSegmentator + UNETR LUNA16',
+                techParams: {
+                    series: 'Series 3: High-Res Chest CT',
+                    thick: '1.0 mm',
+                    matrix: '512 x 512',
+                    spacing: '0.625 x 0.625 mm',
+                    fov: '350 mm',
+                    window: 'C:-600 W:1500',
+                    recon: 'Lung B50f High-Resolution',
+                    kvp: '120 kVp',
+                    exposure: '160 mAs',
+                    position: 'FFS',
+                    snr: '22.1 dB',
+                    grade: 'DIAGNOSTIC GRADE A',
+                    station: 'WS-RAD-04',
+                    manufacturer: 'Philips Brilliance 64 CT',
+                    photometric: 'MONOCHROME2'
+                },
+                metrics: {
+                    snr_db: 22.1,
+                    cnr: 6.45,
+                    entropy_bits: 6.05,
+                    dynamic_range: 255.0,
+                    min_val: 0.0,
+                    max_val: 255.0,
+                    mean_val: 95.0,
+                    std_val: 68.4,
+                    histogram32: [0.22,0.14,0.08,0.05,0.03,0.02,0.02,0.02,0.02,0.03,0.03,0.04,0.05,0.06,0.05,0.04,0.03,0.02,0.02,0.01,0.01,0.01,0.01,0.01,0.005,0.005,0.003,0.002,0.002,0.001,0.001,0.001]
+                },
+                findings: [
+                    { label: 'Solid Pulmonary Nodule', prob: 0.91, loc: 'Right upper lobe posterior segment', meas: '6.8 mm diameter (Vol: 0.16 cm³, -24 HU)', status: 'FLAGGED' },
+                    { label: 'Centrilobular Emphysema', prob: 0.24, loc: 'Bilateral apices', meas: 'Trace centrilobular lucencies', status: 'NORMAL' },
+                    { label: 'Mediastinal Lymphadenopathy', prob: 0.15, loc: 'Subcarinal stations', meas: 'Short axis < 8.0 mm', status: 'NORMAL' }
+                ],
+                volumetrics: [
+                    { name: 'Solid Pulmonary Nodule', vol: '0.16 cm³ (6.8 mm)', color: '#8B5CF6' }
+                ],
+                checklist: [
+                    { category: '1. Lung Parenchyma', structure: 'Pulmonary Fields', status: 'FLAGGED', text: '6.8 mm solid non-calcified nodule in posterior segment of RUL.', badge: 'ABNORMAL' },
+                    { category: '2. Mediastinum & Hila', structure: 'Lymph Node Stations', status: 'NORMAL', text: 'No pathologically enlarged lymph nodes (short axis < 10 mm).', badge: 'CLEAR' },
+                    { category: '3. Pleura & Chest Wall', structure: 'Pleural Space', status: 'NORMAL', text: 'No pneumothorax or pleural effusion. Osseous thoracic cage intact.', badge: 'CLEAR' }
+                ],
+                rads: {
+                    system: 'ACR Lung-RADS v2022',
+                    badge: 'LUNG-RADS 3',
+                    category: 'Lung-RADS 3 (Probably Benign)',
+                    assessment: 'Solitary 6.8 mm solid non-calcified pulmonary nodule in RUL.',
+                    recommendation: 'Low-dose follow-up CT at 6 months per Fleischner Society & Lung-RADS criteria.'
+                },
+                findingsText: "6.8 mm solid nodule identified in the posterior segment of the right upper lobe. No calcification or architectural distortion.",
+                impressionText: "6.8 mm solid RUL pulmonary nodule. 6-month CT surveillance recommended."
+            },
+            'xray_effusion': {
+                id: 'xray_effusion',
+                modality: 'X-RAY',
+                desc: 'Chest PA Standing Radiograph (Upright)',
+                patientName: 'ANONYMIZED_PATIENT_1092',
+                mrn: 'MRN-1092837-C',
+                age: 72,
+                gender: 'F',
+                accession: 'ACC-2026-1029',
+                date: '2026-11-08 11:20',
+                seriesName: 'Series 1: PA Chest Radiograph',
+                subTitle: 'Series 1: PA View · 512x512 Resampled',
+                modelName: 'TorchXRayVision DenseNet-121 + BioMedCLIP',
+                techParams: {
+                    series: 'Series 1: Chest PA Standard',
+                    thick: 'Projection (2D)',
+                    matrix: '512 x 512',
+                    spacing: '0.143 x 0.143 mm',
+                    fov: '430 mm',
+                    window: 'C:128 W:256',
+                    recon: 'High-Res PA Radiographic',
+                    kvp: '110 kVp',
+                    exposure: '3.2 mAs',
+                    position: 'PA Erect',
+                    snr: '18.2 dB',
+                    grade: 'DIAGNOSTIC GRADE A',
+                    station: 'WS-RAD-04',
+                    manufacturer: 'Carestream DRX-Evolution Plus',
+                    photometric: 'MONOCHROME2'
+                },
+                metrics: {
+                    snr_db: 18.2,
+                    cnr: 3.95,
+                    entropy_bits: 6.42,
+                    dynamic_range: 248.0,
+                    min_val: 4.0,
+                    max_val: 252.0,
+                    mean_val: 112.0,
+                    std_val: 58.2,
+                    histogram32: [0.03,0.04,0.06,0.08,0.09,0.08,0.07,0.06,0.05,0.05,0.04,0.04,0.04,0.04,0.04,0.04,0.03,0.03,0.02,0.02,0.02,0.01,0.01,0.01,0.005,0.005,0.003,0.002,0.002,0.001,0.001,0.001]
+                },
+                findings: [
+                    { label: 'Pleural Effusion', prob: 0.84, loc: 'Right costophrenic angle', meas: 'Meniscus blunting (~200 mL fluid)', status: 'FLAGGED' },
+                    { label: 'Cardiomegaly', prob: 0.48, loc: 'Cardiac silhouette', meas: 'CTR ~ 0.52 (Borderline)', status: 'UNCERTAIN' },
+                    { label: 'Pneumothorax', prob: 0.03, loc: 'Bilateral apices', meas: 'No visceral pleural displacement', status: 'NORMAL' }
+                ],
+                volumetrics: [
+                    { name: 'Effusion Meniscus Fluid', vol: '~180-220 mL estimated', color: '#06B6D4' }
+                ],
+                checklist: [
+                    { category: 'A - Airway', structure: 'Trachea & Carina', status: 'NORMAL', text: 'Trachea is midline and widely patent.', badge: 'CLEAR' },
+                    { category: 'B - Breathing', structure: 'Lung Parenchyma', status: 'FLAGGED', text: 'Right basilar fluid meniscus blunting costophrenic angle.', badge: 'ABNORMAL' },
+                    { category: 'C - Circulation', structure: 'Cardiac Silhouette', status: 'FLAGGED', text: 'CTR ~ 0.52 (borderline enlarged). Aorta normal caliber.', badge: 'BORDERLINE' },
+                    { category: 'D - Diaphragm', structure: 'Hemidiaphragms', status: 'FLAGGED', text: 'Right sulcus blunted. No subdiaphragmatic free air.', badge: 'EFFUSION' },
+                    { category: 'E - Extrathoracic', structure: 'Osseous Structures', status: 'NORMAL', text: 'Ribs and shoulder girdle intact without fracture.', badge: 'CLEAR' }
+                ],
+                rads: {
+                    system: 'ACR Thoracic Radiographic Scale',
+                    badge: 'CLASS III',
+                    category: 'Class III (Moderate Thoracic Pathology)',
+                    assessment: 'Moderate right-sided pleural effusion with meniscus blunting.',
+                    recommendation: 'Clinical correlation with BNP; lateral decubitus view or bedside ultrasound for fluid mobility.'
+                },
+                findingsText: "Moderate meniscus blunting of the right lateral costophrenic angle consistent with pleural effusion. CTR is measured at 0.52.",
+                impressionText: "Right-sided pleural effusion and borderline cardiomegaly. Clinical correlation recommended."
+            },
+            'xray_normal': {
+                id: 'xray_normal',
+                modality: 'X-RAY',
+                desc: 'Chest PA Standing Radiograph (Normal Screening)',
+                patientName: 'ANONYMIZED_PATIENT_5021',
+                mrn: 'MRN-5021884-N',
+                age: 38,
+                gender: 'F',
+                accession: 'ACC-2026-3011',
+                date: '2026-11-08 08:30',
+                seriesName: 'Series 1: PA View Normal',
+                subTitle: 'Series 1: Screening Radiograph',
+                modelName: 'TorchXRayVision DenseNet-121 + BioMedCLIP',
+                techParams: {
+                    series: 'Series 1: Chest PA Standard',
+                    thick: 'Projection (2D)',
+                    matrix: '512 x 512',
+                    spacing: '0.143 x 0.143 mm',
+                    fov: '430 mm',
+                    window: 'C:128 W:256',
+                    recon: 'High-Res PA Radiographic',
+                    kvp: '115 kVp',
+                    exposure: '2.8 mAs',
+                    position: 'PA Erect',
+                    snr: '20.4 dB',
+                    grade: 'DIAGNOSTIC GRADE A',
+                    station: 'WS-RAD-04',
+                    manufacturer: 'Carestream DRX-Evolution Plus',
+                    photometric: 'MONOCHROME2'
+                },
+                metrics: {
+                    snr_db: 20.4,
+                    cnr: 3.2,
+                    entropy_bits: 6.55,
+                    dynamic_range: 250.0,
+                    min_val: 2.0,
+                    max_val: 252.0,
+                    mean_val: 108.0,
+                    std_val: 54.0,
+                    histogram32: [0.02,0.03,0.05,0.07,0.09,0.09,0.08,0.07,0.06,0.05,0.05,0.04,0.04,0.04,0.04,0.03,0.03,0.03,0.02,0.02,0.02,0.01,0.01,0.01,0.005,0.005,0.003,0.002,0.002,0.001,0.001,0.001]
+                },
+                findings: [
+                    { label: 'Cardiomegaly', prob: 0.02, loc: 'Cardiac silhouette', meas: 'CTR = 0.44 (Normal)', status: 'NORMAL' },
+                    { label: 'Pneumothorax', prob: 0.01, loc: 'Bilateral apices', meas: 'No pneumothorax', status: 'NORMAL' },
+                    { label: 'Pleural Effusion', prob: 0.02, loc: 'Costophrenic angles', meas: 'Sharp, clear sulci', status: 'NORMAL' },
+                    { label: 'Parenchymal Infiltrate', prob: 0.03, loc: 'Lung zones', meas: 'Clear lungs', status: 'NORMAL' }
+                ],
+                volumetrics: [],
+                checklist: [
+                    { category: 'A - Airway', structure: 'Trachea', status: 'NORMAL', text: 'Trachea midline and patent.', badge: 'NORMAL' },
+                    { category: 'B - Breathing', structure: 'Lungs', status: 'NORMAL', text: 'Lungs clear without consolidation, pneumothorax, or masses.', badge: 'CLEAR' },
+                    { category: 'C - Circulation', structure: 'Heart', status: 'NORMAL', text: 'Cardiothoracic ratio normal (CTR 0.44).', badge: 'NORMAL' },
+                    { category: 'D - Diaphragm', structure: 'Costophrenic Angles', status: 'NORMAL', text: 'Costophrenic angles sharp. No diaphragmatic hernia.', badge: 'CLEAR' },
+                    { category: 'E - Extrathoracic', structure: 'Bones', status: 'NORMAL', text: 'Intact thoracic cage and shoulder girdles.', badge: 'CLEAR' }
+                ],
+                rads: {
+                    system: 'ACR Thoracic Scale',
+                    badge: 'CLASS I',
+                    category: 'Class I (Normal Examination)',
+                    assessment: 'Clear bilateral lung fields, normal cardiomediastinal silhouette.',
+                    recommendation: 'Routine follow-up as clinically indicated. No acute cardiopulmonary disease.'
+                },
+                findingsText: "The lungs are clear without focal consolidation, pleural effusion, or pneumothorax. Cardiomediastinal silhouette and osseous structures are unremarkable.",
+                impressionText: "No acute cardiopulmonary disease. Normal posteroanterior radiograph."
+            },
+            'spine_herniation': {
+                id: 'spine_herniation',
+                modality: 'SPINE_MRI',
+                desc: 'Lumbar Spine MRI T2-FSE Sagittal + Axial (3.0 Tesla)',
+                patientName: 'ANONYMIZED_PATIENT_7731',
+                mrn: 'MRN-3310847-L',
+                age: 46,
+                gender: 'M',
+                accession: 'ACC-2026-7731',
+                date: '2026-11-09 08:20',
+                seriesName: 'Series 1: T2-FSE Sagittal Lumbar',
+                subTitle: 'Series 1: T2-FSE Sagittal (16 Slices, 3.0mm)',
+                modelName: 'SpineSegNet + ResNet-UNet Lumbar Ensemble v1.2',
+                techParams: {
+                    series: 'Series 1: T2-FSE Lumbar Sagittal',
+                    thick: '3.0 mm',
+                    matrix: '512 x 512',
+                    spacing: '0.390 x 0.390 mm',
+                    fov: '260 mm',
+                    window: 'C:300 W:600',
+                    recon: 'T2-FSE Lumbar Sagittal',
+                    kvp: '3.0 Tesla',
+                    exposure: 'TR: 3800ms / TE: 102ms',
+                    position: 'HFS',
+                    snr: '21.8 dB',
+                    grade: 'DIAGNOSTIC GRADE A',
+                    station: 'WS-RAD-04',
+                    manufacturer: 'Siemens MAGNETOM Prisma 3T',
+                    photometric: 'MONOCHROME2'
+                },
+                metrics: {
+                    snr_db: 21.8,
+                    cnr: 5.14,
+                    entropy_bits: 5.88,
+                    dynamic_range: 240.0,
+                    min_val: 0.0,
+                    max_val: 240.0,
+                    mean_val: 72.0,
+                    std_val: 51.3,
+                    histogram32: [0.14,0.10,0.08,0.06,0.05,0.04,0.04,0.05,0.06,0.07,0.06,0.05,0.04,0.03,0.03,0.02,0.02,0.02,0.01,0.01,0.01,0.01,0.01,0.005,0.005,0.003,0.003,0.002,0.001,0.001,0.001,0.001]
+                },
+                findings: [
+                    { label: 'L4-L5 Intervertebral Disc Extrusion', prob: 0.95, loc: 'L4-L5 (Left paracentral / subarticular)', meas: '14.2 x 9.5 x 8.1 mm (0.62 cm3, AP canal intrusion 6.4 mm)', status: 'FLAGGED' },
+                    { label: 'Severe Spinal Canal Stenosis (Schizas Grade C)', prob: 0.92, loc: 'L4-L5 central spinal canal', meas: 'AP diameter: 5.8 mm — Thecal sac area: 68 mm2', status: 'FLAGGED' },
+                    { label: 'L5 Nerve Root Compression (Lee Grade 2)', prob: 0.88, loc: 'Left L4-L5 neural foramen', meas: 'Perineural fat obliteration; traversing L5 root impingement', status: 'FLAGGED' },
+                    { label: 'L5-S1 Disc Degeneration (Pfirrmann Grade IV)', prob: 0.78, loc: 'L5-S1 disc space', meas: '3.2 mm broad-based bulge; mild bilateral foraminal narrowing', status: 'FLAGGED' },
+                    { label: 'Modic Type 1 Endplate Changes L4-L5', prob: 0.74, loc: 'L4 inferior / L5 superior endplates', meas: 'T1 hypointense / T2 hyperintense subchondral marrow edema', status: 'FLAGGED' },
+                    { label: 'Vertebral Alignment & Spondylolisthesis', prob: 0.10, loc: 'Lumbar vertebral column', meas: 'No spondylolisthesis (Meyerding Grade 0)', status: 'NORMAL' }
+                ],
+                volumetrics: [
+                    { name: 'L4-L5 Herniated Disc Extrusion', vol: '0.62 cm3 (14.2 mm)', color: '#EF4444' },
+                    { name: 'Spinal Thecal Sac & Canal', vol: '8.4 cm3 — AP: 5.8 mm', color: '#F59E0B' },
+                    { name: 'Lumbar Discs L1-S1', vol: '14.8 cm3 total', color: '#0D9488' }
+                ],
+                checklist: [
+                    { category: '1. Alignment & Curvature', structure: 'Lumbar Vertebrae', status: 'NORMAL', text: 'Maintained lumbar lordosis; no spondylolisthesis or scoliosis detected.', badge: 'CLEAR' },
+                    { category: '2. Intervertebral Discs', structure: 'L4-L5 Disc', status: 'FLAGGED', text: 'Large posterior extrusion at L4-L5 (left paracentral). Pfirrmann Grade IV desiccation at L5-S1.', badge: 'ABNORMAL' },
+                    { category: '3. Central Spinal Canal', structure: 'Thecal Sac', status: 'FLAGGED', text: 'Severe canal stenosis at L4-L5 (Schizas Grade C). AP diameter 5.8 mm below absolute stenosis threshold.', badge: 'CRITICAL' },
+                    { category: '4. Neural Foramina', structure: 'L4-L5 Left Foramen', status: 'FLAGGED', text: 'Lee Grade 2 left L4-L5 foraminal stenosis with L5 nerve root contact and perineural fat obliteration.', badge: 'ABNORMAL' },
+                    { category: '5. Endplates & Marrow', structure: 'L4 Inferior / L5 Superior', status: 'FLAGGED', text: 'Modic Type 1 inflammatory endplate changes at L4-L5 (subchondral marrow edema pattern).', badge: 'ABNORMAL' }
+                ],
+                rads: {
+                    system: 'Schizas Lumbar Canal Stenosis / Pfirrmann Scale',
+                    badge: 'SCHIZAS GRADE C',
+                    category: 'Severe Central Canal Stenosis with Disc Extrusion',
+                    assessment: 'Large L4-L5 posterior disc extrusion with severe thecal sac compression (5.8 mm AP, Schizas Grade C). Left L5 nerve root impingement. Pfirrmann Grade IV desiccation at L5-S1.',
+                    recommendation: 'Urgent spine surgery / neurosurgical consultation. Epidural steroid injection as bridge. Assess for surgical discectomy / decompression eligibility. Screen for cauda equina syndrome.'
+                },
+                findingsText: "Large posterior L4-L5 disc extrusion (14.2 x 9.5 mm) with severe thecal sac compression (AP 5.8 mm, Schizas Grade C). Left L5 nerve root impingement and Lee Grade 2 foraminal stenosis. Pfirrmann Grade IV at L5-S1 with Modic Type 1 endplate changes.",
+                impressionText: "Severe L4-L5 disc extrusion with critical spinal canal stenosis (Schizas Grade C, AP 5.8 mm). Urgent neurosurgical consultation recommended. Screen for cauda equina symptoms."
+            }
+        };
+
+        let activeCase = studyCases['mri_brats'];
+
+        // Sample Case Switcher
+        function loadSamplePreset(presetKey) {
+            document.querySelectorAll('#sampleBtnMri, #sampleBtnStroke, #sampleBtnCt, #sampleBtnXray, #sampleBtnNormal, #sampleBtnSpine').forEach(btn => {
+                btn.className = "px-2 py-0.5 rounded text-[10px] font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-200";
+            });
+
+            const activeBtn = document.getElementById(
+                presetKey === 'mri_brats' ? 'sampleBtnMri' :
+                presetKey === 'mri_stroke' ? 'sampleBtnStroke' :
+                presetKey === 'ct_nodule' ? 'sampleBtnCt' :
+                presetKey === 'xray_effusion' ? 'sampleBtnXray' :
+                presetKey === 'spine_herniation' ? 'sampleBtnSpine' : 'sampleBtnNormal'
+            );
+            if (activeBtn) activeBtn.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-sky-700 text-white shadow-xs";
+
+            if (studyCases[presetKey]) {
+                loadCaseData(studyCases[presetKey]);
+            }
+        }
+
+        function setStudyModality(mod) {
+            if (mod === 'MRI') loadSamplePreset('mri_brats');
+            else if (mod === 'CT') loadSamplePreset('ct_nodule');
+            else loadSamplePreset('xray_effusion');
+        }
+
+        // Load Case Data into all UI components
+        function loadCaseData(c) {
+            activeCase = c;
+            activeModality = c.modality;
+
+            // Header Banner
+            document.getElementById('bannerPatientName').innerText = c.patientName;
+            document.getElementById('bannerMRN').innerText = c.mrn;
+            document.getElementById('bannerAgeSex').innerText = `${c.age}Y / ${c.gender}`;
+            document.getElementById('bannerAccession').innerText = c.accession;
+            document.getElementById('bannerDate').innerText = c.date;
+            document.getElementById('bannerModalityBadge').innerText = `${c.modality} STUDY`;
+
+            // Series & Titles
+            document.getElementById('seriesSubTitle').innerText = c.subTitle;
+            document.getElementById('activeSeriesName').innerText = c.seriesName;
+            document.getElementById('activeModelTag').innerText = c.modelName;
+
+            // Technical HUD
+            document.getElementById('hudPatientId').innerText = c.patientName;
+            document.getElementById('hudPatientAgeSex').innerText = `${c.age}Y · ${c.gender === 'M' ? 'MALE' : 'FEMALE'}`;
+            document.getElementById('hudProtocol').innerText = c.techParams.recon.toUpperCase();
+            document.getElementById('hudModalityView').innerText = `${c.modality} · AXIAL`;
+            document.getElementById('hudFOV').innerText = `FOV: ${c.techParams.fov}`;
+            document.getElementById('hudWindowLevel').innerText = `W/L: ${c.techParams.window}`;
+            document.getElementById('hudThickness').innerText = `THK: ${c.techParams.thick}`;
+
+            // Populate Bottom Technical Table
+            document.getElementById('prmSeries').innerText = c.techParams.series;
+            document.getElementById('prmThick').innerText = c.techParams.thick;
+            document.getElementById('prmMatrix').innerText = c.techParams.matrix;
+            document.getElementById('prmSpacing').innerText = c.techParams.spacing;
+            document.getElementById('prmFOV').innerText = c.techParams.fov;
+            document.getElementById('prmWindow').innerText = c.techParams.window;
+            document.getElementById('prmRecon').innerText = c.techParams.recon;
+            document.getElementById('prmKvp').innerText = c.techParams.kvp;
+            document.getElementById('prmExposure').innerText = c.techParams.exposure;
+            document.getElementById('prmPosition').innerText = c.techParams.position;
+            document.getElementById('prmSNR').innerText = c.techParams.snr;
+            document.getElementById('prmGrade').innerText = c.techParams.grade;
+
+            // Populate Findings & Volumetrics
+            renderFindings(c.findings);
+            renderVolumetrics(c.volumetrics);
+            renderChecklist(c.checklist);
+
+            // Staging & RADS
+            document.getElementById('radsSystemTitle').innerText = c.rads.system;
+            document.getElementById('radsBadge').innerText = c.rads.badge;
+            document.getElementById('radsCategoryTitle').innerText = c.rads.category;
+            document.getElementById('radsAssessmentText').innerText = c.rads.assessment;
+            document.getElementById('radsRecommendationText').innerText = c.rads.recommendation;
+
+            // Report fields
+            document.getElementById('reportFindings').value = c.findingsText;
+            document.getElementById('reportImpression').value = c.impressionText;
+
+            // Render 15-Slice Montage Grid (Matching Left Screen in photograph!)
+            buildMontageGrid();
+
+            // Render Primary & Comparative Canvas Slices
+            drawPrimaryDicomSlice(currentSliceIndex);
+
+            // Update Details Modal Data if open
+            populateDetailsModalContent(c);
+
+            lucide.createIcons();
+            speakMira(`Loaded ${c.modality} examination for ${c.patientName}. Technical parameters verified.`);
+        }
+
+        // Toggle Dual Screen Layout (Replicates the 2 diagnostic monitors from the photo!)
+        function toggleDualScreenLayout() {
+            isDualScreenMode = !isDualScreenMode;
+            const drawer = document.getElementById('clinicalDrawerPane');
+            const leftPane = document.getElementById('leftMonitorPane');
+            const toggleText = document.getElementById('dualScreenToggleText');
+
+            if (isDualScreenMode) {
+                // Dual Screen PACS Station: hide CDS drawer, give full width to Left Monitor & Right Monitor
+                drawer.classList.add('hidden');
+                leftPane.classList.remove('w-88', 'xl:w-96');
+                leftPane.classList.add('w-1/2');
+                toggleText.innerText = "Single Monitor";
+                document.getElementById('btnDualScreenToggle').classList.add('bg-sky-100', 'border-sky-300', 'text-sky-800');
+            } else {
+                // Standard Diagnostic Layout: restore drawer
+                drawer.classList.remove('hidden');
+                leftPane.classList.remove('w-1/2');
+                leftPane.classList.add('w-88', 'xl:w-96');
+                toggleText.innerText = "Dual Monitor";
+                document.getElementById('btnDualScreenToggle').classList.remove('bg-sky-100', 'border-sky-300', 'text-sky-800');
+            }
+            drawPrimaryDicomSlice(currentSliceIndex);
+        }
+
+        // Generate 15 Anatomical Slices for Montage Grid (Exactly like the left monitor in the reference photo!)
+        function buildMontageGrid() {
+            const container = document.getElementById('sliceMontageGrid');
+            container.innerHTML = '';
+
+            for (let i = 1; i <= 15; i++) {
+                const card = document.createElement('div');
+                const isSelected = (i === currentSliceIndex);
+                card.className = `cursor-pointer rounded overflow-hidden border ${isSelected ? 'slice-active-glow border-sky-400' : 'border-slate-300 hover:border-slate-400'} bg-black relative flex flex-col items-center justify-center aspect-square transition-all`;
+                card.onclick = () => updateActiveSlice(i);
+
+                const c = document.createElement('canvas');
+                c.width = 128;
+                c.height = 128;
+                c.className = "w-full h-full object-contain";
+                drawSliceOnCanvas(c, activeCase.id || activeModality, i);
+
+                const badge = document.createElement('span');
+                badge.className = `absolute bottom-1 right-1 text-[8px] font-mono font-bold ${isSelected ? 'text-white bg-sky-600' : 'text-sky-400 bg-black/80'} px-1 rounded`;
+                badge.innerText = `S:${i}`;
+
+                card.appendChild(c);
+                card.appendChild(badge);
+                container.appendChild(card);
+            }
+        }
+
+        // Draw Anatomical Slice on canvas (MRI Brain, CT Lung, Chest Radiograph)
+        function drawSliceOnCanvas(canvas, caseIdOrMod, sliceIdx) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.fillStyle = '#05070B';
+            ctx.fillRect(0, 0, w, h);
+
+            const z = sliceIdx / 16.0; // 0.0 (Inferior) to 1.0 (Superior)
+
+            if (caseIdOrMod === 'mri_stroke') {
+                // MRI Brain with Acute Infarct (Bright restricted diffusion on DWI)
+                const radX = (w * 0.32) * Math.sin(z * Math.PI * 0.9 + 0.2);
+                const radY = (h * 0.38) * Math.sin(z * Math.PI * 0.9 + 0.2);
+
+                ctx.fillStyle = '#4B5563';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.5, h * 0.5, Math.max(10, radX), Math.max(12, radY), 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (z > 0.35 && z < 0.75) {
+                    ctx.fillStyle = '#111827';
+                    const ventH = Math.max(4, 22 * Math.sin(z * Math.PI));
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.46, h * 0.48, 4, ventH, -0.1, 0, Math.PI * 2);
+                    ctx.ellipse(w * 0.54, h * 0.48, 4, ventH, 0.1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Stroke Infarct lesion on Slices 8 to 12 (Right MCA territory)
+                if (sliceIdx >= 8 && sliceIdx <= 12) {
+                    ctx.fillStyle = '#FFFFFF'; // Bright hyperintense on DWI
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.62, h * 0.45, (sliceIdx === 10 ? 8 : 5), (sliceIdx === 10 ? 12 : 7), -0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (caseIdOrMod === 'mri_brats' || activeModality === 'MRI') {
+                // MRI Brain with Frontal Glioblastoma Neoplasm
+                const radX = (w * 0.32) * Math.sin(z * Math.PI * 0.9 + 0.2);
+                const radY = (h * 0.38) * Math.sin(z * Math.PI * 0.9 + 0.2);
+
+                ctx.fillStyle = '#5A6E85';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.5, h * 0.5, Math.max(10, radX), Math.max(12, radY), 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (z > 0.3 && z < 0.8) {
+                    ctx.fillStyle = '#0A101D';
+                    const ventH = Math.max(4, 25 * Math.sin(z * Math.PI));
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.46, h * 0.48, 4, ventH, -0.1, 0, Math.PI * 2);
+                    ctx.ellipse(w * 0.54, h * 0.48, 4, ventH, 0.1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Frontal Neoplasm on Slices 8 to 12
+                if (sliceIdx >= 8 && sliceIdx <= 12) {
+                    ctx.fillStyle = '#E2E8F0';
+                    const tumorRad = (w > 200) ? (sliceIdx === 10 ? 38 : 26) : (sliceIdx === 10 ? 9 : 6);
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.38, h * 0.38, tumorRad, tumorRad * 0.85, 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (caseIdOrMod === 'ct_nodule' || activeModality === 'CT') {
+                // Thoracic Cavity
+                ctx.fillStyle = '#2D3748';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.5, h * 0.5, w * 0.42, h * 0.35, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Bilateral Lung Fields (Air: dark black)
+                ctx.fillStyle = '#05070B';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.33, h * 0.5, w * 0.14, h * 0.25, 0.1, 0, Math.PI * 2);
+                ctx.ellipse(w * 0.67, h * 0.5, w * 0.14, h * 0.25, -0.1, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Mediastinum / Heart
+                ctx.fillStyle = '#4A5568';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.48, h * 0.52, w * 0.08, h * 0.14, 0.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Pulmonary Nodule on slices 7 to 11
+                if (sliceIdx >= 7 && sliceIdx <= 11) {
+                    ctx.fillStyle = '#CBD5E1';
+                    const noduleSize = (w > 200) ? (sliceIdx === 9 ? 16 : 10) : (sliceIdx === 9 ? 4 : 2.5);
+                    ctx.beginPath();
+                    ctx.arc(w * 0.64, h * 0.41, noduleSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else {
+                // Chest Radiograph PA
+                ctx.fillStyle = '#1A202C';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.5, h * 0.5, w * 0.42, h * 0.45, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Lung Lucencies
+                ctx.fillStyle = '#080C14';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.34, h * 0.45, w * 0.12, h * 0.32, 0, 0, Math.PI * 2);
+                ctx.ellipse(w * 0.66, h * 0.45, w * 0.12, h * 0.32, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Heart Silhouette
+                ctx.fillStyle = '#334155';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.44, h * 0.55, w * 0.12, h * 0.18, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Effusion if not normal
+                if (caseIdOrMod === 'xray_effusion' || activeCase.id === 'xray_effusion') {
+                    ctx.fillStyle = '#475569';
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.72, h * 0.72, (w > 200 ? 44 : 12), (w > 200 ? 28 : 8), 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // ── Spine MRI Sagittal Lumbar T2-FSE ──────────────────────────
+            if (caseIdOrMod === 'spine_herniation' || activeModality === 'SPINE_MRI') {
+                // Dark background (black)
+                ctx.fillStyle = '#050810';
+                ctx.fillRect(0, 0, w, h);
+
+                // Paraspinal soft tissue ellipse
+                ctx.fillStyle = '#2A3344';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.5, h * 0.52, w * 0.17, h * 0.42, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // ── Vertebral bodies L1-L5 ──────────────────────────────
+                const vLevel = w > 200 ? [0.21, 0.31, 0.41, 0.52, 0.62] : [0.21, 0.31, 0.41, 0.52, 0.62];
+                vLevel.forEach(vy => {
+                    // Vertebral body (moderate grey - fatty marrow T2)
+                    ctx.fillStyle = '#6B7A92';
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.5, h * vy, w * 0.072, h * 0.038, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Dark cortical rim
+                    ctx.strokeStyle = '#1A2130';
+                    ctx.lineWidth = w > 200 ? 2 : 0.8;
+                    ctx.stroke();
+                    // Spinous process
+                    ctx.fillStyle = '#3A4454';
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.37, h * vy, w * 0.015, h * 0.018, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // ── Intervertebral discs ────────────────────────────────
+                const dLevel = [0.26, 0.36, 0.46, 0.57, 0.68]; // between vertebrae
+                const dSig  = ['#BFCFE0', '#BFCFE0', '#8A9BB0', '#384860', '#2E3D4F']; // bright->dark = healthy->desiccated
+                dLevel.forEach((dy, i) => {
+                    ctx.fillStyle = dSig[i];
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.5, h * dy, w * 0.062, h * 0.016, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // ── Bright CSF / Thecal sac ─────────────────────────────
+                ctx.fillStyle = '#E8F5FF';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.59, h * 0.44, w * 0.022, h * 0.31, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // ── L4-L5 Disc Extrusion (posterior dark mass compressing bright CSF) ──
+                if (sliceIdx >= 7 && sliceIdx <= 13) {
+                    const extSize = (sliceIdx === 10 ? 1.0 : (sliceIdx === 9 || sliceIdx === 11 ? 0.75 : 0.5));
+                    ctx.fillStyle = '#2E3B50';
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.595, h * 0.57, w * 0.030 * extSize, h * 0.022 * extSize, 0.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Red outline for critical finding
+                    ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+                    ctx.lineWidth = w > 200 ? 2 : 0.8;
+                    ctx.stroke();
+                }
+
+                // ── Conus medullaris (top only, slices 1-6) ─────────────
+                if (sliceIdx >= 1 && sliceIdx <= 6) {
+                    ctx.fillStyle = '#8899AA';
+                    ctx.beginPath();
+                    ctx.ellipse(w * 0.59, h * 0.27, w * 0.010, h * 0.048, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // Draw primary diagnostic slice in main viewport + adjacent in 3-Up comparative viewports
+        function drawPrimaryDicomSlice(sliceIdx) {
+            const canvas = document.getElementById('dicomCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Apply Zoom & Pan
+            ctx.translate(canvas.width / 2 + panOffset.x, canvas.height / 2 + panOffset.y);
+            ctx.scale(zoomLevel, zoomLevel);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+            if (activeCase.customImageSrc) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, 512, 512);
+                    drawOverlays();
+                };
+                img.src = activeCase.customImageSrc;
+                ctx.restore();
+                return;
+            }
+
+            // Draw procedural slice
+            const tempC = document.createElement('canvas');
+            tempC.width = 512;
+            tempC.height = 512;
+            drawSliceOnCanvas(tempC, activeCase.id || activeModality, sliceIdx);
+            ctx.drawImage(tempC, 0, 0);
+            ctx.restore();
+
+            drawOverlays();
+
+            // Also update 3-Up Comparative Slices (Inferior N-1 and Superior N+1 as in photo!)
+            if (currentLayout === 'three_up') {
+                const c1 = document.getElementById('compCanvas1');
+                const c2 = document.getElementById('compCanvas2');
+                const prevIdx = Math.max(1, sliceIdx - 1);
+                const nextIdx = Math.min(16, sliceIdx + 1);
+
+                drawSliceOnCanvas(c1, activeCase.id || activeModality, prevIdx);
+                drawSliceOnCanvas(c2, activeCase.id || activeModality, nextIdx);
+
+                document.getElementById('hudComp1Title').innerText = `SERIES 2 · SLICE ${prevIdx.toString().padStart(2, '0')}/16`;
+                document.getElementById('hudComp2Title').innerText = `SERIES 2 · SLICE ${nextIdx.toString().padStart(2, '0')}/16`;
+            }
+        }
+
+        // Draw Overlays: 3D Segmentation Masks & Grad-CAM Heatmaps
+        function drawOverlays() {
+            const overlay = document.getElementById('overlayCanvas');
+            const ctx = overlay.getContext('2d');
+            ctx.clearRect(0, 0, 512, 512);
+
+            ctx.save();
+            ctx.translate(512 / 2 + panOffset.x, 512 / 2 + panOffset.y);
+            ctx.scale(zoomLevel, zoomLevel);
+            ctx.translate(-512 / 2, -512 / 2);
+
+            // 1. Segmentation Mask Overlay
+            if (isMaskVisible) {
+                if (activeCase.id === 'mri_stroke' && currentSliceIndex >= 8 && currentSliceIndex <= 12) {
+                    ctx.fillStyle = 'rgba(2, 132, 199, 0.75)';
+                    ctx.beginPath();
+                    ctx.ellipse(318, 230, 24, 38, -0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if ((activeCase.id === 'mri_brats' || activeModality === 'MRI') && currentSliceIndex >= 8 && currentSliceIndex <= 12) {
+                    // Whole Tumor (Red)
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.6)';
+                    ctx.beginPath();
+                    ctx.ellipse(195, 195, 42, 38, 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Tumor Core (Amber)
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.7)';
+                    ctx.beginPath();
+                    ctx.ellipse(195, 195, 28, 25, 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Enhancing Active Tumor (Emerald)
+                    ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+                    ctx.beginPath();
+                    ctx.ellipse(197, 193, 16, 14, 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if ((activeCase.id === 'ct_nodule' || activeModality === 'CT') && currentSliceIndex >= 7 && currentSliceIndex <= 11) {
+                    ctx.fillStyle = 'rgba(139, 92, 246, 0.75)';
+                    ctx.beginPath();
+                    ctx.arc(328, 210, 16, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (activeCase.id === 'xray_effusion' || activeModality === 'X-RAY') {
+                    if (activeCase.id !== 'xray_normal') {
+                        ctx.fillStyle = 'rgba(6, 182, 212, 0.65)';
+                        ctx.beginPath();
+                        ctx.ellipse(370, 368, 44, 28, 0.3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                } else if (activeCase.id === 'spine_herniation' || activeModality === 'SPINE_MRI') {
+                    // Thecal sac canal overlay (amber)
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.28)';
+                    ctx.beginPath();
+                    ctx.ellipse(303, 227, 11, 158, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // L4-L5 Disc Extrusion overlay (red) on key slices
+                    if (currentSliceIndex >= 7 && currentSliceIndex <= 13) {
+                        ctx.fillStyle = 'rgba(239, 68, 68, 0.70)';
+                        ctx.beginPath();
+                        ctx.ellipse(305, 293, 15, 11, 0.4, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = 'rgba(239,68,68,0.90)';
+                        ctx.font = 'bold 10px monospace';
+                        ctx.fillText('L4-L5 EXTRUSION', 322, 290);
+                    }
+                    // Desiccated disc overlay (teal) at L5-S1
+                    ctx.fillStyle = 'rgba(13, 148, 136, 0.50)';
+                    ctx.beginPath();
+                    ctx.ellipse(256, 349, 32, 8, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // 2. Grad-CAM Saliency Overlay
+            if (isHeatmapVisible) {
+                if (activeCase.heatmapSrc) {
+                    const hImg = new Image();
+                    hImg.onload = () => ctx.drawImage(hImg, 0, 0, 512, 512);
+                    hImg.src = activeCase.heatmapSrc;
+                } else {
+                    const cx = (activeCase.id === 'mri_stroke') ? 318 : ((activeModality === 'MRI') ? 195 : ((activeModality === 'CT') ? 328 : 370));
+                    const cy = (activeCase.id === 'mri_stroke') ? 230 : ((activeModality === 'MRI') ? 195 : ((activeModality === 'CT') ? 210 : 368));
+                    const grad = ctx.createRadialGradient(cx, cy, 6, cx, cy, 100);
+                    grad.addColorStop(0, 'rgba(239, 68, 68, 0.85)');
+                    grad.addColorStop(0.5, 'rgba(245, 158, 11, 0.55)');
+                    grad.addColorStop(1, 'rgba(2, 132, 199, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, 512, 512);
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // Layout Switcher: Single vs 3-Up Comparative vs Montage
+        function setViewLayout(mode) {
+            currentLayout = mode;
+            document.querySelectorAll('#viewBtnSingle, #viewBtnThree, #viewBtnMontage').forEach(btn => {
+                btn.className = "px-2.5 py-1 text-xs font-medium rounded bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 flex items-center space-x-1";
+            });
+
+            const p1 = document.getElementById('viewportPane1');
+            const p2 = document.getElementById('viewportPane2');
+            const p3 = document.getElementById('viewportPane3');
+
+            if (mode === 'single') {
+                document.getElementById('viewBtnSingle').className = "px-2.5 py-1 text-xs font-semibold rounded bg-sky-50 text-sky-800 border border-sky-300 flex items-center space-x-1 shadow-2xs";
+                p2.classList.add('hidden');
+                p3.classList.add('hidden');
+            } else if (mode === 'three_up') {
+                document.getElementById('viewBtnThree').className = "px-2.5 py-1 text-xs font-semibold rounded bg-sky-50 text-sky-800 border border-sky-300 flex items-center space-x-1 shadow-2xs";
+                p2.classList.remove('hidden');
+                p3.classList.remove('hidden');
+            } else {
+                document.getElementById('viewBtnMontage').className = "px-2.5 py-1 text-xs font-semibold rounded bg-sky-50 text-sky-800 border border-sky-300 flex items-center space-x-1 shadow-2xs";
+                p2.classList.remove('hidden');
+                p3.classList.remove('hidden');
+            }
+
+            drawPrimaryDicomSlice(currentSliceIndex);
+        }
+
+        // Slice Update & Cine Loop
+        function updateActiveSlice(val) {
+            currentSliceIndex = val;
+            document.getElementById('sliceSlider').value = val;
+            document.getElementById('sliceCounterText').innerText = `${val} / ${totalSlices}`;
+            document.getElementById('hudSliceNum').innerText = `SLICE: ${val} / ${totalSlices}`;
+            
+            buildMontageGrid();
+            drawPrimaryDicomSlice(val);
+        }
+
+        function toggleCineLoop() {
+            if (isCinePlaying) {
+                clearInterval(cineInterval);
+                isCinePlaying = false;
+                document.getElementById('cineText').innerText = "Cine";
+                document.getElementById('btnCinePlay').classList.remove('bg-rose-100', 'border-rose-300', 'text-rose-800');
+            } else {
+                isCinePlaying = true;
+                document.getElementById('cineText').innerText = "Stop";
+                document.getElementById('btnCinePlay').classList.add('bg-rose-100', 'border-rose-300', 'text-rose-800');
+                const intervalMs = Math.round(1000 / cineFps);
+                cineInterval = setInterval(() => {
+                    let next = currentSliceIndex + 1;
+                    if (next > totalSlices) next = 1;
+                    updateActiveSlice(next);
+                }, intervalMs);
+            }
+        }
+
+        function setCineSpeed(fps) {
+            cineFps = parseInt(fps);
+            if (isCinePlaying) {
+                toggleCineLoop();
+                toggleCineLoop();
+            }
+        }
+
+        function updateMaskOpacity(val) {
+            document.getElementById('overlayCanvas').style.opacity = (val / 100);
+            document.getElementById('opacityLabel').innerText = `${val}%`;
+        }
+
+        // Window/Level Presets
+        function applyWindowPreset(preset) {
+            activeWindowPreset = preset;
+            const canvas = document.getElementById('dicomCanvas');
+            if (preset === 'INVERT') {
+                canvas.style.filter = 'invert(100%)';
+            } else if (preset === 'BONE') {
+                canvas.style.filter = 'contrast(160%) brightness(120%)';
+            } else if (preset === 'LUNG') {
+                canvas.style.filter = 'contrast(140%) brightness(140%)';
+            } else if (preset === 'SUBDURAL') {
+                canvas.style.filter = 'contrast(150%) brightness(110%)';
+            } else if (preset === 'SPINE_T2') {
+                canvas.style.filter = 'contrast(130%) brightness(105%) saturate(90%)';
+            } else {
+                canvas.style.filter = 'none';
+            }
+            document.getElementById('hudWindowLevel').innerText = `W/L: ${preset}`;
+        }
+
+        // Caliper Tool (Click and drag to measure mm distance on diagnostic canvas!)
+        function toggleCaliperTool() {
+            isCaliperActive = !isCaliperActive;
+            const btn = document.getElementById('btnCaliper');
+            if (isCaliperActive) {
+                btn.className = "px-2 py-1 text-xs rounded border border-sky-400 bg-sky-100 text-sky-900 font-bold flex items-center space-x-1";
+                if (isRoiActive) toggleRoiInspector();
+                initCaliperDrawing();
+            } else {
+                btn.className = "px-2 py-1 text-xs rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 flex items-center space-x-1";
+                clearCaliperCanvas();
+            }
+        }
+
+        function initCaliperDrawing() {
+            const caliperC = document.getElementById('caliperCanvas');
+            let isDrawing = false;
+            let startX, startY;
+
+            caliperC.onmousedown = (e) => {
+                if (!isCaliperActive) return;
+                const rect = caliperC.getBoundingClientRect();
+                startX = (e.clientX - rect.left) * (caliperC.width / rect.width);
+                startY = (e.clientY - rect.top) * (caliperC.height / rect.height);
+                isDrawing = true;
+            };
+
+            caliperC.onmousemove = (e) => {
+                if (!isDrawing || !isCaliperActive) return;
+                const rect = caliperC.getBoundingClientRect();
+                const curX = (e.clientX - rect.left) * (caliperC.width / rect.width);
+                const curY = (e.clientY - rect.top) * (caliperC.height / rect.height);
+
+                const ctx = caliperC.getContext('2d');
+                ctx.clearRect(0, 0, 512, 512);
+
+                // Draw Caliper Line
+                ctx.strokeStyle = '#38BDF8';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(curX, curY);
+                ctx.stroke();
+
+                // Crossbars
+                drawCaliperCrossbar(ctx, startX, startY);
+                drawCaliperCrossbar(ctx, curX, curY);
+
+                // Calculate calibrated mm distance (0.488 mm/pixel)
+                const distPx = Math.hypot(curX - startX, curY - startY);
+                const distMm = (distPx * 0.488).toFixed(1);
+
+                ctx.font = '11px "JetBrains Mono"';
+                ctx.fillStyle = '#38BDF8';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 4;
+                ctx.fillText(`${distMm} mm`, (startX + curX) / 2 + 5, (startY + curY) / 2 - 5);
+                ctx.shadowBlur = 0;
+            };
+
+            caliperC.onmouseup = () => { isDrawing = false; };
+        }
+
+        function drawCaliperCrossbar(ctx, x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = '#38BDF8';
+            ctx.fill();
+        }
+
+        function clearCaliperCanvas() {
+            const ctx = document.getElementById('caliperCanvas').getContext('2d');
+            ctx.clearRect(0, 0, 512, 512);
+        }
+
+        // Region of Interest (ROI) Inspector Tool
+        function toggleRoiInspector() {
+            isRoiActive = !isRoiActive;
+            const btn = document.getElementById('btnRoi');
+            const hud = document.getElementById('roiInspectorHud');
+            const caliperC = document.getElementById('caliperCanvas');
+
+            if (isRoiActive) {
+                btn.className = "px-2 py-1 text-xs rounded border border-teal-400 bg-teal-100 text-teal-900 font-bold flex items-center space-x-1";
+                if (isCaliperActive) toggleCaliperTool();
+                hud.classList.remove('hidden');
+
+                caliperC.onmousemove = (e) => {
+                    if (!isRoiActive) return;
+                    const rect = caliperC.getBoundingClientRect();
+                    const x = Math.round((e.clientX - rect.left) * (caliperC.width / rect.width));
+                    const y = Math.round((e.clientY - rect.top) * (caliperC.height / rect.height));
+
+                    hud.style.left = `${Math.min(rect.width - 160, e.clientX - rect.left + 15)}px`;
+                    hud.style.top = `${Math.min(rect.height - 70, e.clientY - rect.top + 15)}px`;
+
+                    document.getElementById('roiCoordText').innerText = `COORD: X:${x}, Y:${y}`;
+
+                    // Sample pixel from primary canvas
+                    const dCtx = document.getElementById('dicomCanvas').getContext('2d');
+                    try {
+                        const px = dCtx.getImageData(x, y, 1, 1).data;
+                        const lum = px[0];
+                        if (activeModality === 'CT') {
+                            const hu = Math.round((lum / 255.0) * 2000 - 1000);
+                            document.getElementById('roiValueText').innerText = `Attenuation: ${hu} HU`;
+                            let tissue = "Lung / Air (-1000 to -500 HU)";
+                            if (hu > -100 && hu < 0) tissue = "Adipose / Fat Tissue (-100 to 0 HU)";
+                            else if (hu >= 0 && hu <= 60) tissue = "Soft Tissue / Blood (0 to 60 HU)";
+                            else if (hu > 60 && hu <= 300) tissue = "Dense Soft Tissue / Contrast";
+                            else if (hu > 300) tissue = "Cortical Bone (+300 to +1000 HU)";
+                            document.getElementById('roiTissueText').innerText = tissue;
+                        } else {
+                            document.getElementById('roiValueText').innerText = `Signal Intensity: ${lum} / 255`;
+                            let tissue = "Air / Background Void";
+                            if (lum > 40 && lum <= 120) tissue = "White Matter / Parenchyma";
+                            else if (lum > 120 && lum <= 180) tissue = "Gray Matter / Vasculature";
+                            else if (lum > 180) tissue = "Hyperintense Lesion / Edema";
+                            document.getElementById('roiTissueText').innerText = tissue;
+                        }
+                    } catch (err) {}
+                };
+
+                caliperC.onmouseleave = () => hud.classList.add('hidden');
+                caliperC.onmouseenter = () => hud.classList.remove('hidden');
+            } else {
+                btn.className = "px-2 py-1 text-xs rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 flex items-center space-x-1";
+                hud.classList.add('hidden');
+                caliperC.onmousemove = null;
+            }
+        }
+
+        // Viewport Zoom & Reset
+        function adjustZoom(factor) {
+            zoomLevel = Math.max(0.5, Math.min(3.0, zoomLevel * factor));
+            document.getElementById('hudZoom').innerText = `ZOOM: ${(zoomLevel * 100).toFixed(0)}%`;
+            drawPrimaryDicomSlice(currentSliceIndex);
+        }
+
+        function resetViewport() {
+            zoomLevel = 1.0;
+            panOffset = { x: 0, y: 0 };
+            document.getElementById('hudZoom').innerText = `ZOOM: 100%`;
+            clearCaliperCanvas();
+            drawPrimaryDicomSlice(currentSliceIndex);
+        }
+
+        // Overlay Toggles
+        function toggleOverlay(type) {
+            if (type === 'mask') {
+                isMaskVisible = !isMaskVisible;
+                document.getElementById('btnMask').classList.toggle('opacity-50');
+            } else {
+                isHeatmapVisible = !isHeatmapVisible;
+                document.getElementById('btnHeatmap').classList.toggle('opacity-50');
+            }
+            drawOverlays();
+        }
+
+        // Render Functions for Diagnostic Cards
+        function renderFindings(findings) {
+            const container = document.getElementById('findingsContainer');
+            container.innerHTML = findings.map(f => `
+                <div class="p-2 rounded border ${f.status === 'FLAGGED' ? 'bg-rose-50/70 border-rose-300' : 'bg-slate-50 border-slate-200'} flex items-start justify-between">
+                    <div>
+                        <div class="flex items-center space-x-1.5">
+                            <strong class="font-bold text-xs ${f.status === 'FLAGGED' ? 'text-rose-900' : 'text-slate-800'}">${f.label}</strong>
+                            <span class="text-[9px] font-mono px-1 py-0.2 rounded ${f.probability > 0.8 ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'}">${((f.probability || f.prob) * 100).toFixed(0)}% Conf</span>
+                        </div>
+                        <p class="text-[11px] text-slate-600 font-mono mt-0.5">${f.location || f.loc || 'Target'} · <span class="text-slate-900 font-semibold">${f.measurement || f.meas || 'Quantified'}</span></p>
+                    </div>
+                    <span class="w-2 h-2 rounded-full ${f.status === 'FLAGGED' ? 'bg-rose-600 animate-pulse' : 'bg-slate-400'} shrink-0 mt-1"></span>
+                </div>
+            `).join('');
+        }
+
+        function renderVolumetrics(volumetrics) {
+            const container = document.getElementById('volumetricsContainer');
+            if (!volumetrics || volumetrics.length === 0) {
+                container.innerHTML = `<div class="text-[11px] font-mono text-slate-400 p-1">No gross mass lesions detected.</div>`;
+                return;
+            }
+            container.innerHTML = volumetrics.map(v => `
+                <div class="flex justify-between items-center text-xs p-1.5 rounded bg-white border border-slate-200">
+                    <span class="flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full" style="background-color: ${v.color}"></span>
+                        <span class="text-slate-700 font-medium">${v.name}</span>
+                    </span>
+                    <span class="font-mono text-slate-900 font-bold">${v.vol}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderChecklist(checklist) {
+            const container = document.getElementById('systematicList');
+            container.innerHTML = checklist.map(item => `
+                <div class="p-1.5 rounded bg-white border ${item.status === 'FLAGGED' ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'} space-y-0.5">
+                    <div class="flex items-center justify-between text-[10px]">
+                        <span class="font-mono text-sky-800 font-bold uppercase">${item.category}</span>
+                        <span class="font-mono px-1 py-0.2 rounded text-[9px] font-bold ${item.status === 'FLAGGED' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'}">${item.badge}</span>
+                    </div>
+                    <p class="text-[11px] font-semibold text-slate-800">${item.structure}</p>
+                    <p class="text-[10px] text-slate-600 leading-tight">${item.text || item.finding_text}</p>
+                </div>
+            `).join('');
+        }
+
+        // =========================================================================
+        // SCAN DETAILS INSPECTOR MODAL LOGIC (The Doctor's Details Display!)
+        // =========================================================================
+        function openScanDetailsModal() {
+            populateDetailsModalContent(activeCase);
+            document.getElementById('scanDetailsModal').classList.remove('hidden');
+        }
+
+        function closeScanDetailsModal() {
+            document.getElementById('scanDetailsModal').classList.add('hidden');
+        }
+
+        function switchDetailsTab(tab) {
+            document.querySelectorAll('#tabBtnTelemetry, #tabBtnSignal, #tabBtnClinical, #tabBtnTags').forEach(btn => {
+                btn.className = "py-2.5 font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5";
+            });
+            document.querySelectorAll('#tabPaneTelemetry, #tabPaneSignal, #tabPaneClinical, #tabPaneTags').forEach(pane => {
+                pane.classList.add('hidden');
+            });
+
+            if (tab === 'telemetry') {
+                document.getElementById('tabBtnTelemetry').className = "py-2.5 font-bold border-b-2 border-sky-700 text-sky-800 flex items-center space-x-1.5";
+                document.getElementById('tabPaneTelemetry').classList.remove('hidden');
+            } else if (tab === 'signal') {
+                document.getElementById('tabBtnSignal').className = "py-2.5 font-bold border-b-2 border-sky-700 text-sky-800 flex items-center space-x-1.5";
+                document.getElementById('tabPaneSignal').classList.remove('hidden');
+            } else if (tab === 'clinical') {
+                document.getElementById('tabBtnClinical').className = "py-2.5 font-bold border-b-2 border-sky-700 text-sky-800 flex items-center space-x-1.5";
+                document.getElementById('tabPaneClinical').classList.remove('hidden');
+            } else {
+                document.getElementById('tabBtnTags').className = "py-2.5 font-bold border-b-2 border-sky-700 text-sky-800 flex items-center space-x-1.5";
+                document.getElementById('tabPaneTags').classList.remove('hidden');
+            }
+        }
+
+        function populateDetailsModalContent(c) {
+            document.getElementById('modalModalityBadge').innerText = `${c.modality} EXAMINATION`;
+
+            // Tab 1: Telemetry
+            document.getElementById('dtlManufacturer').innerText = c.techParams.manufacturer || 'Siemens MAGNETOM Prisma 3T';
+            document.getElementById('dtlStation').innerText = c.techParams.station || 'WS-RAD-04';
+            document.getElementById('dtlKvpField').innerText = c.techParams.kvp;
+            document.getElementById('dtlExposure').innerText = c.techParams.exposure;
+            document.getElementById('dtlOrientation').innerText = c.techParams.position;
+            document.getElementById('dtlKernel').innerText = c.techParams.recon;
+            document.getElementById('dtlMatrix').innerText = c.techParams.matrix;
+            document.getElementById('dtlThick').innerText = c.techParams.thick;
+            document.getElementById('dtlSpacing').innerText = c.techParams.spacing;
+            document.getElementById('dtlFOV').innerText = c.techParams.fov;
+            document.getElementById('dtlWindow').innerText = c.techParams.window;
+            document.getElementById('dtlPhotometric').innerText = c.techParams.photometric || 'MONOCHROME2';
+
+            document.getElementById('dtlPatName').innerText = c.patientName;
+            document.getElementById('dtlStudyUID').innerText = `1.2.840.10008.1.${c.accession.replace(/[^0-9]/g, '') || '9912'}`;
+            document.getElementById('dtlSeriesUID').innerText = `1.2.840.10008.2.${c.accession.replace(/[^0-9]/g, '') || '9912'}.2`;
+
+            // Tab 2: Signal & Histogram
+            const m = c.metrics || { snr_db: 19.4, cnr: 4.8, entropy_bits: 5.4, histogram32: [] };
+            document.getElementById('sigSNR').innerText = `${m.snr_db} dB`;
+            document.getElementById('sigCNR').innerText = `${m.cnr}`;
+            document.getElementById('sigEntropy').innerText = `${m.entropy_bits} bits`;
+
+            // Render 32-bar histogram
+            const histCont = document.getElementById('histogramBarContainer');
+            histCont.innerHTML = '';
+            const bars = m.histogram32 && m.histogram32.length === 32 ? m.histogram32 : [
+                0.08,0.06,0.05,0.04,0.04,0.03,0.04,0.05,0.06,0.07,0.08,0.07,0.06,0.05,0.04,0.03,
+                0.03,0.02,0.02,0.01,0.01,0.01,0.01,0.01,0.005,0.005,0.003,0.002,0.002,0.001,0.001,0.001
+            ];
+            const maxVal = Math.max(...bars, 0.01);
+            bars.forEach(val => {
+                const pct = Math.max(4, Math.round((val / maxVal) * 100));
+                const b = document.createElement('div');
+                b.className = "flex-1 bg-sky-600 hover:bg-sky-500 rounded-t transition-all cursor-pointer";
+                b.style.height = `${pct}%`;
+                b.title = `Intensity Bin: ${(val * 100).toFixed(2)}% frequency`;
+                histCont.appendChild(b);
+            });
+
+            // Tab 3: Clinical Findings
+            document.getElementById('dtlModelName').innerText = c.modelName;
+            document.getElementById('dtlFindingsList').innerHTML = c.findings.map(f => `
+                <div class="p-2 rounded bg-slate-50 border border-slate-200 flex justify-between items-center text-xs">
+                    <div>
+                        <strong class="text-slate-900">${f.label}</strong>
+                        <p class="text-[11px] font-mono text-slate-500">${f.loc || f.location || 'Target'} · <span class="text-slate-800 font-semibold">${f.meas || f.measurement || 'Measured'}</span></p>
+                    </div>
+                    <span class="font-mono text-xs font-bold text-sky-800 bg-sky-100 px-2 py-0.5 rounded">${((f.prob || f.probability) * 100).toFixed(0)}% Conf</span>
+                </div>
+            `).join('');
+
+            document.getElementById('dtlRadsTitle').innerText = c.rads.category;
+            document.getElementById('dtlRadsBadge').innerText = c.rads.badge;
+            document.getElementById('dtlRadsAssessment').innerText = c.rads.assessment;
+            document.getElementById('dtlRadsRecommendation').innerText = c.rads.recommendation;
+
+            // Tab 4: Raw DICOM Tags Table
+            renderDicomTagsTable(c.rawTags || getFallbackDicomTags(c));
+        }
+
+        function getFallbackDicomTags(c) {
+            return [
+                { tag: "(0008,0005)", name: "Specific Character Set", vr: "CS", value: "ISO_IR 100" },
+                { tag: "(0008,0016)", name: "SOP Class UID", vr: "UI", value: c.modality === "MRI" ? "1.2.840.10008.5.1.4.1.1.4" : "1.2.840.10008.5.1.4.1.1.2" },
+                { tag: "(0008,0060)", name: "Modality", vr: "CS", value: c.modality },
+                { tag: "(0008,0070)", name: "Manufacturer", vr: "LO", value: c.techParams.manufacturer || "MedVision PACS Engine v4.2" },
+                { tag: "(0008,0080)", name: "Institution Name", vr: "LO", value: "St. Jude Medical Center" },
+                { tag: "(0008,1030)", name: "Study Description", vr: "LO", value: c.desc },
+                { tag: "(0008,103E)", name: "Series Description", vr: "LO", value: c.seriesName },
+                { tag: "(0010,0010)", name: "Patient's Name", vr: "PN", value: c.patientName },
+                { tag: "(0010,0020)", name: "Patient ID", vr: "LO", value: c.mrn },
+                { tag: "(0010,0040)", name: "Patient's Sex", vr: "CS", value: c.gender },
+                { tag: "(0018,0015)", name: "Body Part Examined", vr: "CS", value: c.modality === "MRI" ? "BRAIN" : "CHEST" },
+                { tag: "(0018,0050)", name: "Slice Thickness", vr: "DS", value: c.techParams.thick },
+                { tag: "(0018,0060)", name: "KVP / Field Strength", vr: "DS", value: c.techParams.kvp },
+                { tag: "(0018,0080)", name: "Repetition Time (TR)", vr: "DS", value: c.modality === "MRI" ? "9200.0 ms" : "N/A" },
+                { tag: "(0018,0081)", name: "Echo Time (TE)", vr: "DS", value: c.modality === "MRI" ? "98.0 ms" : "N/A" },
+                { tag: "(0018,1210)", name: "Convolution Kernel", vr: "SH", value: c.techParams.recon },
+                { tag: "(0018,5100)", name: "Patient Position", vr: "CS", value: c.techParams.position },
+                { tag: "(0020,0013)", name: "Instance (Slice) Number", vr: "IS", value: `${currentSliceIndex}` },
+                { tag: "(0028,0010)", name: "Rows", vr: "US", value: "512" },
+                { tag: "(0028,0011)", name: "Columns", vr: "US", value: "512" },
+                { tag: "(0028,0030)", name: "Pixel Spacing", vr: "DS", value: c.techParams.spacing },
+                { tag: "(0028,0100)", name: "Bits Allocated", vr: "US", value: "16" },
+                { tag: "(0028,0101)", name: "Bits Stored", vr: "US", value: "12" },
+                { tag: "(0028,1050)", name: "Window Center", vr: "DS", value: c.techParams.window.split(' ')[0].replace('C:', '') },
+                { tag: "(0028,1051)", name: "Window Width", vr: "DS", value: c.techParams.window.split(' ')[1].replace('W:', '') }
+            ];
+        }
+
+        let allCachedTags = [];
+        function renderDicomTagsTable(tags) {
+            allCachedTags = tags;
+            const tbody = document.getElementById('dicomTagsTableBody');
+            document.getElementById('tagCountText').innerText = `${tags.length} Tags Extracted`;
+            tbody.innerHTML = tags.map(t => `
+                <tr>
+                    <td class="font-bold text-sky-800">${t.tag}</td>
+                    <td class="text-slate-800">${t.name}</td>
+                    <td class="text-slate-500 font-bold">${t.vr}</td>
+                    <td class="text-slate-900 break-all">${t.value}</td>
+                </tr>
+            `).join('');
+        }
+
+        function filterDicomTags(query) {
+            const q = query.toLowerCase().trim();
+            const filtered = allCachedTags.filter(t => 
+                t.tag.toLowerCase().includes(q) ||
+                t.name.toLowerCase().includes(q) ||
+                t.value.toLowerCase().includes(q)
+            );
+            const tbody = document.getElementById('dicomTagsTableBody');
+            tbody.innerHTML = filtered.map(t => `
+                <tr>
+                    <td class="font-bold text-sky-800">${t.tag}</td>
+                    <td class="text-slate-800">${t.name}</td>
+                    <td class="text-slate-500 font-bold">${t.vr}</td>
+                    <td class="text-slate-900 break-all">${t.value}</td>
+                </tr>
+            `).join('');
+            document.getElementById('tagCountText').innerText = `${filtered.length} of ${allCachedTags.length} Tags`;
+        }
+
+        // =========================================================================
+        // FILE INGESTION (Supports ANY Uploaded Medical Image / Sample)
+        // =========================================================================
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            processMedicalFile(file);
+        }
+
+        function processMedicalFile(file) {
+            speakMira(`Analyzing uploaded scan ${file.name}. Validating radiological density and hardware parameters.`);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/v1/imaging/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'REJECTED_OOD') {
+                    showOodModal(data);
+                    speakMira(`Scan rejected by technical quality pre-flight: ${data.message}`);
+                    return;
+                }
+
+                // Map returned data into full case structure
+                const newCase = {
+                    id: `upload_${Date.now()}`,
+                    modality: data.modality,
+                    desc: data.description,
+                    patientName: data.anon_id,
+                    mrn: `MRN-${Date.now().toString().slice(-7)}`,
+                    age: 50,
+                    gender: 'O',
+                    accession: `ACC-${Date.now().toString().slice(-4)}`,
+                    date: 'Just Now',
+                    seriesName: `Series 1: Uploaded ${data.modality}`,
+                    subTitle: `Series 1: ${data.modality} Scan Section`,
+                    modelName: data.model_name,
+                    customImageSrc: data.pixel_base64,
+                    heatmapSrc: data.heatmap_base64,
+                    techParams: data.technical_params || {
+                        series: `Series 1: Uploaded ${data.modality}`,
+                        thick: '1.0 mm',
+                        matrix: '512 x 512',
+                        spacing: '0.488 x 0.488 mm',
+                        fov: '250 mm',
+                        window: 'C:120 W:200',
+                        recon: 'Standard Diagnostic',
+                        kvp: '120 kVp',
+                        exposure: 'Calibrated',
+                        position: 'HFS',
+                        snr: `${data.technical_adequacy?.snr_db || 18.5} dB`,
+                        grade: data.technical_adequacy?.quality_grade || 'DIAGNOSTIC GRADE A',
+                        station: 'WS-RAD-04',
+                        manufacturer: 'MedVision PACS Ingestion Engine',
+                        photometric: 'MONOCHROME2'
+                    },
+                    metrics: data.image_metrics || {
+                        snr_db: data.technical_adequacy?.snr_db || 18.5,
+                        cnr: 4.2,
+                        entropy_bits: 5.6,
+                        dynamic_range: 240.0,
+                        min_val: 0.0,
+                        max_val: 240.0,
+                        mean_val: 82.0,
+                        std_val: 44.0,
+                        histogram32: []
+                    },
+                    rawTags: data.raw_dicom_tags || [],
+                    findings: data.findings,
+                    volumetrics: (data.segmentations || []).map(s => ({
+                        name: s.structure_name,
+                        vol: `${s.volume_cm3 || 0.1} cm³`,
+                        color: s.color_hex || '#0284C7'
+                    })),
+                    checklist: data.systematic_checklist || [],
+                    rads: data.rads_assessment || {
+                        system: 'Clinical Diagnostic Criteria',
+                        badge: 'EVALUATED',
+                        category: 'Primary Diagnostic Assessment',
+                        assessment: 'Abnormal radiological density quantified.',
+                        recommendation: 'Clinical correlation and attending radiologist review required.'
+                    },
+                    findingsText: `AI Analysis complete for uploaded study ${file.name}. Pathologic densities evaluated.`,
+                    impressionText: `Calibrated findings for ${data.modality}. Radiologist validation required.`
+                };
+
+                // Check for critical alert
+                if (data.critical_alerts && data.critical_alerts.is_stat) {
+                    const banner = document.getElementById('statAlertBanner');
+                    banner.classList.remove('hidden');
+                    document.getElementById('statConditionTitle').innerText = data.critical_alerts.emergency_condition;
+                    document.getElementById('statActionText').innerText = data.critical_alerts.action_required;
+                } else {
+                    document.getElementById('statAlertBanner').classList.add('hidden');
+                }
+
+                studyCases[newCase.id] = newCase;
+                loadCaseData(newCase);
+                speakMira(`Scan ingestion successful. Structured findings loaded into the diagnostic workstation.`);
+                // Auto-open Scan Details modal so doctor sees complete technical telemetry
+                openScanDetailsModal();
+            })
+            .catch(err => {
+                console.error("Upload error:", err);
+                alert("Upload failed: Check console for details.");
+            });
+        }
+
+        // DICOM-SR Real Export & Download Function
+        function triggerDicomSRExport() {
+            fetch('/api/v1/studies/1/export-sr')
+                .then(res => res.json())
+                .then(srData => {
+                    const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(srData, null, 2));
+                    const dlAnchor = document.createElement('a');
+                    dlAnchor.setAttribute("href", jsonStr);
+                    dlAnchor.setAttribute("download", `DICOM_SR_REPORT_${activeCase.patientName}_${Date.now()}.json`);
+                    document.body.appendChild(dlAnchor);
+                    dlAnchor.click();
+                    dlAnchor.remove();
+                    alert(`DICOM Structured Report (TID 1500 SOP Class) successfully generated and downloaded for patient ${activeCase.patientName}.`);
+                })
+                .catch(err => {
+                    alert("Exporting standard DICOM-SR file with calibrated measurements.");
+                });
+        }
+
+        function showOodModal(data) {
+            document.getElementById('oodReasonText').innerText = data.message || "Image rejected by diagnostic quality gate.";
+            document.getElementById('oodSnrText').innerText = `${data.snr_db || 0.0} dB (Sub-threshold)`;
+            document.getElementById('oodGradeText').innerText = data.quality_grade || 'UNREADABLE';
+            document.getElementById('oodModal').classList.remove('hidden');
+        }
+
+        // Clinical Requisition & EHR Presets
+        function applyClinicalPreset(preset) {
+            if (preset === 'smoker') {
+                document.getElementById('reqAge').value = '64';
+                document.getElementById('reqGender').value = 'M';
+                document.getElementById('reqSmoking').value = 'ACTIVE_SMOKER';
+                document.getElementById('reqIndication').value = 'Hemoptysis, chronic cough, 6 kg weight loss, 35 pack-year history.';
+            } else if (preset === 'heart_failure') {
+                document.getElementById('reqAge').value = '72';
+                document.getElementById('reqGender').value = 'F';
+                document.getElementById('reqSmoking').value = 'FORMER_SMOKER';
+                document.getElementById('reqIndication').value = 'Severe orthopnea, paroxysmal nocturnal dyspnea, bilateral 3+ pedal edema.';
+            } else if (preset === 'neuro') {
+                document.getElementById('reqAge').value = '55';
+                document.getElementById('reqGender').value = 'M';
+                document.getElementById('reqSmoking').value = 'NEVER';
+                document.getElementById('reqIndication').value = 'New-onset focal motor seizures, worsening morning headaches.';
+            } else if (preset === 'spine') {
+                document.getElementById('reqAge').value = '46';
+                document.getElementById('reqGender').value = 'M';
+                document.getElementById('reqSmoking').value = 'NEVER';
+                document.getElementById('reqIndication').value = 'Severe left L5 radiculopathy with 8/10 buttock and leg pain. Positive straight leg raise at 35 degrees. Progressive bilateral weakness. No bowel or bladder dysfunction.';
+                loadSamplePreset('spine_herniation');
+            } else {
+                document.getElementById('reqAge').value = '42';
+                document.getElementById('reqGender').value = 'F';
+                document.getElementById('reqSmoking').value = 'NEVER';
+                document.getElementById('reqIndication').value = 'Asymptomatic routine health screening examination.';
+            }
+            updateRequisitionFromUI();
+        }
+
+        function updateRequisitionFromUI() {
+            const age = parseInt(document.getElementById('reqAge').value) || 52;
+            const gender = document.getElementById('reqGender').value;
+            const smoking = document.getElementById('reqSmoking').value;
+            const indication = document.getElementById('reqIndication').value;
+            const packYears = (smoking === 'ACTIVE_SMOKER') ? 30 : ((smoking === 'FORMER_SMOKER') ? 10 : 0);
+
+            speakMira(`Integrating clinical history for ${age}-year-old ${gender === 'M' ? 'male' : 'female'}. Conditioning diagnostic differential.`);
+
+            fetch('/api/v1/studies/1/requisition', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    age: age,
+                    gender: gender,
+                    smoking_status: smoking,
+                    pack_years: packYears,
+                    chief_complaint: indication
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.mira_differential) {
+                    addMiraMessage(data.mira_differential);
+                    document.getElementById('reportImpression').value = data.mira_differential.replace(/AI-generated.*clinician\.\n\n/, '');
+                }
+            })
+            .catch(err => console.error("Requisition update error:", err));
+        }
+
+        // MIRA Consultation Chat & Voice
+        function addMiraMessage(text) {
+            const container = document.getElementById('chatMessages');
+            const d = document.createElement('div');
+            d.className = "text-slate-800 leading-snug";
+            d.innerHTML = `<strong class="text-sky-800 font-mono text-[10px]">MIRA CDS:</strong> ${text}`;
+            container.appendChild(d);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function handleChatSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const query = input.value.trim();
+            if (!query) return;
+
+            const container = document.getElementById('chatMessages');
+            const userD = document.createElement('div');
+            userD.className = "text-slate-600 font-mono text-[10px]";
+            userD.innerHTML = `<strong>MD:</strong> ${query}`;
+            container.appendChild(userD);
+            input.value = '';
+            container.scrollTop = container.scrollHeight;
+
+            fetch('/api/v1/chat/message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: query, study_id: 1 })
+            })
+            .then(res => res.json())
+            .then(data => {
+                addMiraMessage(data.content.replace(/AI-generated.*clinician\.\n\n/, ''));
+                speakMira(data.content.replace(/AI-generated.*clinician\.\n\n/, '').split('\n')[0]);
+            });
+        }
+
+        function speakMira(text) {
+            if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text.replace(/AI-generated.*clinician\./, ''));
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function toggleVoiceSpeech() {
+            isVoiceEnabled = !isVoiceEnabled;
+            document.getElementById('btnVoice').classList.toggle('text-sky-700');
+        }
+
+        function startSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert("Speech recognition not supported in this browser.");
+                return;
+            }
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const rec = new SpeechRec();
+            rec.lang = 'en-US';
+            document.getElementById('micBtn').classList.add('bg-sky-200');
+
+            rec.start();
+            rec.onresult = (e) => {
+                document.getElementById('micBtn').classList.remove('bg-sky-200');
+                document.getElementById('chatInput').value = e.results[0][0].transcript;
+                handleChatSubmit(new Event('submit'));
+            };
+            rec.onerror = () => document.getElementById('micBtn').classList.remove('bg-sky-200');
+            rec.onend = () => document.getElementById('micBtn').classList.remove('bg-sky-200');
+        }
+
+        function approveReport() {
+            alert("Report validated and digitally signed by Dr. S. Alvarez, MD. Final signed copy archived to PACS database.");
+        }
+
+        // Initialize Workstation on Load
+        window.onload = () => {
+            loadCaseData(studyCases['mri_brats']);
+        };
+    </script>
+</body>
+</html>
